@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/src/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
   Home,
@@ -26,6 +27,7 @@ import {
   ChevronRight,
   User,
   MessageCircle,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -50,23 +52,76 @@ const navItems = [
 
 const bottomNavItems = [
   { label: "Settings", icon: Settings },
-  { label: "Companies", icon: Building2 },
+  { label: "Logout", icon: LogOut },
 ];
 
 const statusBar = {
   version: "Version: 22.8.1.1555",
   userName: "JP Jacobs",
   companyCode: "AA000001",
-  companyName: "Omega Online",
   email: "jp@revelation.co.za",
-  date: "Sunday 19 Mar",
 };
 
 export default function HomePage() {
   const [activeItem, setActiveItem] = useState("Home");
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showLogOutModal, setShowLogOutModal] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [diskNumber, setDiskNumber] = useState("");
   const router = useRouter();
 
+  const [selectedCompany, setSelectedCompany] = useState<{
+    companyName: string;
+    companyNr: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("selectedCompany");
+    if (stored) {
+      setSelectedCompany(JSON.parse(stored));
+    }
+  }, []);
+
+  //This function handles the date checking and checks what date the user
+  //logged in.
+  const today = new Date().toLocaleDateString("en-ZA", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  });
+
+  //This function will display the user's
+  //email address in the status bar.
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email ?? "");
+      }
+    };
+    getUser();
+  }, []);
+
+  //This function handles the process to get the clients diskNumber
+  //and to use it under the Statusbar.
+  const fetchClientDetails = async () => {
+    const response = await fetch("/api/client-details");
+    const data = await response.json();
+    if (data.disk_number) {
+      setDiskNumber(data.disk_number);
+    }
+  };
+
+  useEffect(() => {
+    fetchClientDetails();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.replace("/login");
+  };
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
       <div className="flex flex-1 overflow-hidden">
@@ -152,7 +207,11 @@ export default function HomePage() {
             {bottomNavItems.map(({ label, icon: Icon }) => (
               <button
                 key={label}
-                onClick={() => setActiveItem(label)}
+                onClick={() =>
+                  label === "Logout"
+                    ? setShowLogOutModal(true)
+                    : setActiveItem(label)
+                }
                 className={`w-full flex items-center px-4 py-2 text-sm transition-colors whitespace-nowrap
                   ${
                     activeItem === label
@@ -204,11 +263,38 @@ export default function HomePage() {
       <footer className="bg-[#1B3D35] text-[#7aada0] text-[11px] flex items-center gap-6 px-4 py-1.5 shrink-0">
         <span>{statusBar.version}</span>
         <span>{statusBar.userName}</span>
-        <span>{statusBar.companyCode}</span>
-        <span>{statusBar.companyName}</span>
-        <span>{statusBar.email}</span>
-        <span className="ml-auto">{statusBar.date}</span>
+        <span>{diskNumber}</span>
+        <span>{selectedCompany?.companyName}</span>
+        <span>{selectedCompany?.companyNr}</span>
+        <span>{userEmail}</span>
+        <span className="ml-auto">{today}</span>
       </footer>
+      {showLogOutModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-8">
+            <h2 className="text-gray-900 text-lg font-semibold mb-2">
+              Log out
+            </h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Are you sure you want to log out?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleSignOut}
+                className="w-full bg-[#1B3D35] hover:bg-[#15302a] text-white font-medium py-3 rounded-lg transition duration-200"
+              >
+                Yes, log out
+              </button>
+              <button
+                onClick={() => setShowLogOutModal(false)}
+                className="text-sm text-gray-500 hover:text-[#1B3D35] transition text-center"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

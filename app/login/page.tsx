@@ -23,7 +23,7 @@ export default function LoginPage() {
     if (error) {
       setError("Invalid credentials");
     } else {
-      window.location.replace("/Home");
+      window.location.replace("/company-select");
     }
   };
 

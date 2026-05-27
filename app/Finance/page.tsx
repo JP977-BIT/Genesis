@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -17,7 +17,6 @@ import {
   Plus,
 } from "lucide-react";
 
-// ── Finance sidebar nav ────────────────────────────────────
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, hasPlus: false },
   { label: "Clients", icon: Users, hasPlus: true },
@@ -28,32 +27,70 @@ const navItems = [
   { label: "Modules", icon: Grid2X2, hasPlus: true },
 ];
 
-const statusBar = {
-  version: "Version: 22.8.1.1555",
-  userName: "JP Jacobs",
-  companyCode: "AA000001",
-  companyName: "Omega Online",
-  email: "jp@revelation.co.za",
-  date: "Sunday 19 Mar",
-};
-
-// ── Sidebar colours ────────────────────────────────────────
 const SIDEBAR_BG = "#1e2d45";
 const SIDEBAR_ACTIVE = "#2a3d5e";
 const SIDEBAR_HOVER = "#263653";
 const SIDEBAR_BORDER = "#2c3f5c";
 
+interface Customer {
+  accNo: string;
+  name: string;
+  phone: string;
+  contact: string;
+  balance: number;
+  activeYN: boolean;
+}
+
 export default function FinancePage() {
   const router = useRouter();
   const [activeItem, setActiveItem] = useState("Dashboard");
   const [isExpanded, setIsExpanded] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("selectedCompany");
+    console.log("Stored company:", stored);
+
+    if (!stored) {
+      console.log("No company found in localStorage");
+      return;
+    }
+
+    let company;
+    try {
+      company = JSON.parse(stored);
+      console.log("Parsed company:", company);
+    } catch (err) {
+      console.error("Failed to parse company from localStorage:", err);
+      return;
+    }
+
+    const fetchCustomers = async () => {
+      setLoadingCustomers(true);
+      try {
+        const response = await fetch(
+          `/api/customers?companyNr=${company.companyNr}`,
+        );
+        console.log("Response status:", response.status);
+        const result = await response.json();
+        console.log("Result:", result);
+        if (result.success) {
+          setCustomers(result.data.customers);
+        }
+      } catch (err) {
+        console.error("Failed to fetch customers:", err);
+      } finally {
+        setLoadingCustomers(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
       <div className="flex flex-1 overflow-hidden">
-        {/* ════════════════════════════════
-            SIDEBAR (dark navy)
-        ════════════════════════════════ */}
         <aside
           onMouseEnter={() => setIsExpanded(true)}
           onMouseLeave={() => setIsExpanded(false)}
@@ -63,7 +100,6 @@ export default function FinancePage() {
           }}
           className="transition-[width] duration-300 ease-in-out flex flex-col shrink-0 overflow-hidden z-10"
         >
-          {/* Back / Forward arrows */}
           <div
             className="flex items-center gap-1 px-3 py-2.5 shrink-0"
             style={{ borderBottom: `1px solid ${SIDEBAR_BORDER}` }}
@@ -86,7 +122,6 @@ export default function FinancePage() {
             </button>
           </div>
 
-          {/* Branding */}
           <div
             className="flex items-center gap-3 px-3 py-3 shrink-0"
             style={{ borderBottom: `1px solid ${SIDEBAR_BORDER}` }}
@@ -110,7 +145,6 @@ export default function FinancePage() {
             </div>
           </div>
 
-          {/* Main nav */}
           <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1">
             {navItems.map(({ label, icon: Icon, hasPlus }) => {
               const isActive = activeItem === label;
@@ -150,14 +184,7 @@ export default function FinancePage() {
                     {label}
                   </span>
                   {hasPlus && isExpanded && (
-                    <Plus
-                      size={13}
-                      className="shrink-0 opacity-50"
-                      style={{
-                        opacity: isExpanded ? 0.5 : 0,
-                        transition: "opacity 150ms ease",
-                      }}
-                    />
+                    <Plus size={13} className="shrink-0 opacity-50" />
                   )}
                 </button>
               );
@@ -165,11 +192,7 @@ export default function FinancePage() {
           </nav>
         </aside>
 
-        {/* ════════════════════════════════
-            MAIN CONTENT
-        ════════════════════════════════ */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Header */}
           <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-[#1B3D35] flex items-center justify-center">
@@ -194,26 +217,79 @@ export default function FinancePage() {
             </div>
           </header>
 
-          {/* Page content */}
           <main className="flex-1 overflow-y-auto p-4">
-            <div className="bg-white rounded-md shadow-sm px-5 py-3 mb-4">
-              <p className="text-sm text-gray-400">Finance — {activeItem}</p>
-            </div>
+            {activeItem === "Clients" && (
+              <div className="bg-white rounded-md shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700">Clients</p>
+                </div>
+                {loadingCustomers ? (
+                  <p className="text-sm text-gray-400 px-5 py-4">
+                    Loading customers...
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                      <tr>
+                        <th className="px-5 py-3 text-left">Acc No</th>
+                        <th className="px-5 py-3 text-left">Name</th>
+                        <th className="px-5 py-3 text-left">Contact</th>
+                        <th className="px-5 py-3 text-left">Phone</th>
+                        <th className="px-5 py-3 text-right">Balance</th>
+                        <th className="px-5 py-3 text-center">Active</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {customers.map((customer) => (
+                        <tr
+                          key={customer.accNo}
+                          className="hover:bg-gray-50 transition"
+                        >
+                          <td className="px-5 py-3 font-mono text-xs text-[#1B3D35]">
+                            {customer.accNo}
+                          </td>
+                          <td className="px-5 py-3 font-medium text-gray-800">
+                            {customer.name}
+                          </td>
+                          <td className="px-5 py-3 text-gray-500">
+                            {customer.contact}
+                          </td>
+                          <td className="px-5 py-3 text-gray-500">
+                            {customer.phone}
+                          </td>
+                          <td className="px-5 py-3 text-right font-mono text-gray-700">
+                            R{" "}
+                            {customer.balance.toLocaleString("en-ZA", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                customer.activeYN
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {customer.activeYN ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {activeItem !== "Clients" && (
+              <div className="bg-white rounded-md shadow-sm px-5 py-3">
+                <p className="text-sm text-gray-400">Finance — {activeItem}</p>
+              </div>
+            )}
           </main>
         </div>
       </div>
-
-      {/* ════════════════════════════════
-          STATUS BAR
-      ════════════════════════════════ */}
-      <footer className="bg-[#1e2d45] text-[#7aada0] text-[11px] flex items-center gap-6 px-4 py-1.5 shrink-0">
-        <span>{statusBar.version}</span>
-        <span>{statusBar.userName}</span>
-        <span>{statusBar.companyCode}</span>
-        <span>{statusBar.companyName}</span>
-        <span>{statusBar.email}</span>
-        <span className="ml-auto">{statusBar.date}</span>
-      </footer>
     </div>
   );
 }
