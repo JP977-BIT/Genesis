@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getClientForUser } from "@/src/server/supabase/getClientForUser";
 import { getClientApiConnection } from "@/src/server/supabase/getClientApiConnection";
+import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -45,29 +46,19 @@ export async function GET() {
     );
   }
 
-  // Step 4 - Login to the Revelation API to get a token
-  const loginResponse = await fetch(
-    `${apiConnection.api_base_url}/api/auth/login`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pin: profile.apiPin,
-        deviceId: "12345",
-      }),
-    },
+  // Step 4 - Get a token (cached if available, fresh login if not)
+  const token = await getRevelationToken(
+    profile.clientId,
+    apiConnection,
+    profile.apiPin,
   );
 
-  const loginData = await loginResponse.json();
-
-  if (!loginData.success) {
+  if (!token) {
     return NextResponse.json(
       { message: "Revelation API login failed" },
       { status: 401 },
     );
   }
-
-  const token = loginData.data.token;
 
   // Step 5 - Fetch companies using the token
   const companiesResponse = await fetch(

@@ -115,8 +115,8 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    fetchClientDetails();
-  }, []);
+  fetchClientDetails();
+}, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

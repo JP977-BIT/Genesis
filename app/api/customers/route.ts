@@ -3,13 +3,19 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getClientForUser } from "@/src/server/supabase/getClientForUser";
 import { getClientApiConnection } from "@/src/server/supabase/getClientApiConnection";
+import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
 
-  // Get companyNr from query params
+  // Get companyNr, startingRow, and numberOfRecords from query params
   const { searchParams } = new URL(request.url);
   const companyNr = searchParams.get("companyNr");
+  const startingRow = parseInt(searchParams.get("startingRow") ?? "0", 10);
+  const numberOfRecords = parseInt(
+    searchParams.get("numberOfRecords") ?? "50",
+    10,
+  );
 
   if (!companyNr) {
     return NextResponse.json(
@@ -47,29 +53,20 @@ export async function GET(request: NextRequest) {
       { status: 404 },
     );
 
-  // Login to Revelation API
-  const loginResponse = await fetch(
-    `${apiConnection.api_base_url}/api/auth/login`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pin: profile.apiPin,
-        deviceId: "12345",
-      }),
-    },
+  // Get a token (cached if available, fresh login if not)
+  const token = await getRevelationToken(
+    profile.clientId,
+    apiConnection,
+    profile.apiPin,
   );
 
-  const loginData = await loginResponse.json();
-  if (!loginData.success)
+  if (!token)
     return NextResponse.json(
       { message: "Revelation API login failed" },
       { status: 401 },
     );
 
-  const token = loginData.data.token;
-
-  // Fetch customers from Revelation API
+  // Fetch customers from Revelation API (one page at a time)
   const customersResponse = await fetch(
     `${apiConnection.api_base_url}/api/customers/customers`,
     {
@@ -80,8 +77,8 @@ export async function GET(request: NextRequest) {
       },
       body: JSON.stringify({
         companyNr: companyNr,
-        startingRow: 0,
-        numberOrRecords: 20,
+        startingRow: startingRow,
+        numberOrRecords: numberOfRecords,
       }),
       signal: AbortSignal.timeout(30000),
     },

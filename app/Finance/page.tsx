@@ -15,6 +15,7 @@ import {
   User,
   MessageCircle,
   Plus,
+  Loader2,
 } from "lucide-react";
 
 const navItems = [
@@ -47,8 +48,11 @@ export default function FinancePage() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
+    let isActive = true; // guards against Strict Mode double-fire
+
     const stored = localStorage.getItem("selectedCompany");
     console.log("Stored company:", stored);
 
@@ -68,24 +72,65 @@ export default function FinancePage() {
 
     const fetchCustomers = async () => {
       setLoadingCustomers(true);
+      setLoadingMore(true);
+      setCustomers([]); // start fresh each time
+
+      const CHUNK_SIZE = 50;
+      let startingRow = 0;
+      let keepGoing = true;
+
       try {
-        const response = await fetch(
-          `/api/customers?companyNr=${company.companyNr}`,
-        );
-        console.log("Response status:", response.status);
-        const result = await response.json();
-        console.log("Result:", result);
-        if (result.success) {
-          setCustomers(result.data.customers);
+        while (keepGoing) {
+          const response = await fetch(
+            `/api/customers?companyNr=${company.companyNr}&startingRow=${startingRow}&numberOfRecords=${CHUNK_SIZE}`,
+          );
+          const result = await response.json();
+
+          if (!isActive) return; // a newer run took over — stop quietly
+
+          if (!result.success) {
+            keepGoing = false;
+            break;
+          }
+
+          const newCustomers: Customer[] = result.data.customers;
+
+          // Append only customers we don't already have (no duplicates)
+          setCustomers((prev) => {
+            const existingAccNos = new Set(prev.map((c) => c.accNo));
+            const uniqueNew = newCustomers.filter(
+              (c) => !existingAccNos.has(c.accNo),
+            );
+            return [...prev, ...uniqueNew];
+          });
+
+          // Hide the big loading message after the first chunk lands
+          if (startingRow === 0) {
+            setLoadingCustomers(false);
+          }
+
+          // Fewer than we asked for means we've reached the end
+          if (newCustomers.length < CHUNK_SIZE) {
+            keepGoing = false;
+          } else {
+            startingRow += CHUNK_SIZE;
+          }
         }
       } catch (err) {
         console.error("Failed to fetch customers:", err);
       } finally {
-        setLoadingCustomers(false);
+        if (isActive) {
+          setLoadingCustomers(false);
+          setLoadingMore(false);
+        }
       }
     };
 
     fetchCustomers();
+
+    return () => {
+      isActive = false; // cleanup: cancel this run if effect re-fires
+    };
   }, []);
 
   return (
@@ -220,8 +265,11 @@ export default function FinancePage() {
           <main className="flex-1 overflow-y-auto p-4">
             {activeItem === "Clients" && (
               <div className="bg-white rounded-md shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-700">Clients</p>
+                  <p className="text-xs text-gray-400">
+                    {customers.length} loaded
+                  </p>
                 </div>
                 {loadingCustomers ? (
                   <p className="text-sm text-gray-400 px-5 py-4">
@@ -277,6 +325,18 @@ export default function FinancePage() {
                         </tr>
                       ))}
                     </tbody>
+                    {loadingMore && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={6} className="px-5 py-4 text-center">
+                            <span className="inline-flex items-center gap-2 text-sm text-gray-400">
+                              <Loader2 size={16} className="animate-spin" />
+                              Loading more clients...
+                            </span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 )}
               </div>
