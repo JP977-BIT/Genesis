@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { User, MessageCircle, Loader2 } from "lucide-react";
+import { User, MessageCircle } from "lucide-react";
 import FinanceSidebar from "./components/financeSidebar";
 
 interface Customer {
@@ -19,7 +19,6 @@ export default function FinancePage() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -54,51 +53,22 @@ export default function FinancePage() {
 
     const fetchCustomers = async () => {
       setLoadingCustomers(true);
-      setLoadingMore(true);
-      setCustomers([]);
-
-      const CHUNK_SIZE = 50;
-      let startingRow = 0;
-      let keepGoing = true;
 
       try {
-        while (keepGoing) {
-          const response = await fetch(
-            `/api/customers?companyNr=${company.companyNr}&startingRow=${startingRow}&numberOfRecords=${CHUNK_SIZE}`,
-          );
-          const result = await response.json();
+        const response = await fetch(
+          `/api/customers?companyNr=${company.companyNr}&numberOfRecords=999999`,
+        );
+        const result = await response.json();
 
-          if (!isActive) return;
-          if (!result.success) {
-            keepGoing = false;
-            break;
-          }
+        if (!isActive) return;
 
-          const newCustomers: Customer[] = result.data.customers;
-
-          setCustomers((prev) => {
-            const existingAccNos = new Set(prev.map((c) => c.accNo));
-            const uniqueNew = newCustomers.filter(
-              (c) => !existingAccNos.has(c.accNo),
-            );
-            return [...prev, ...uniqueNew];
-          });
-
-          if (startingRow === 0) setLoadingCustomers(false);
-
-          if (newCustomers.length < CHUNK_SIZE) {
-            keepGoing = false;
-          } else {
-            startingRow += CHUNK_SIZE;
-          }
+        if (result.success) {
+          setCustomers(result.data.customers);
         }
       } catch (err) {
         console.error("Failed to fetch customers:", err);
       } finally {
-        if (isActive) {
-          setLoadingCustomers(false);
-          setLoadingMore(false);
-        }
+        if (isActive) setLoadingCustomers(false);
       }
     };
 
@@ -111,7 +81,6 @@ export default function FinancePage() {
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar lives in its own file — won't re-render when customers load */}
         <FinanceSidebar
           isExpanded={isExpanded}
           setIsExpanded={setIsExpanded}
@@ -150,7 +119,7 @@ export default function FinancePage() {
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
                   <p className="text-sm font-semibold text-gray-700">Clients</p>
                   <p className="text-xs text-gray-400">
-                    {customers.length} loaded
+                    {customers.length} clients
                   </p>
                 </div>
 
@@ -160,9 +129,17 @@ export default function FinancePage() {
                   </p>
                 ) : (
                   <>
-                    {/* Sticky header — outside the scroll container */}
-                    <div className="shrink-0">
-                      <table className="w-full text-sm">
+                    {/* Sticky header table — table-fixed + shared colgroup keeps it aligned */}
+                    <div className="shrink-0 pr-[15px]">
+                      <table className="w-full text-sm table-fixed">
+                        <colgroup>
+                          <col className="w-[12%]" />
+                          <col className="w-[26%]" />
+                          <col className="w-[18%]" />
+                          <col className="w-[16%]" />
+                          <col className="w-[16%]" />
+                          <col className="w-[12%]" />
+                        </colgroup>
                         <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                           <tr>
                             <th className="px-5 py-3 text-left">Acc No</th>
@@ -176,12 +153,20 @@ export default function FinancePage() {
                       </table>
                     </div>
 
-                    {/* Scrollable virtualised body */}
+                    {/* Scrollable virtualised body table — identical colgroup */}
                     <div
                       ref={tableContainerRef}
                       className="flex-1 overflow-auto"
                     >
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm table-fixed">
+                        <colgroup>
+                          <col className="w-[12%]" />
+                          <col className="w-[26%]" />
+                          <col className="w-[18%]" />
+                          <col className="w-[16%]" />
+                          <col className="w-[16%]" />
+                          <col className="w-[12%]" />
+                        </colgroup>
                         <tbody>
                           {paddingTop > 0 && (
                             <tr>
@@ -196,16 +181,16 @@ export default function FinancePage() {
                                 key={customer.accNo}
                                 className="hover:bg-gray-50 transition border-b border-gray-100"
                               >
-                                <td className="px-5 py-3 font-mono text-xs text-[#1B3D35]">
+                                <td className="px-5 py-3 font-mono text-xs text-[#1B3D35] truncate">
                                   {customer.accNo}
                                 </td>
-                                <td className="px-5 py-3 font-medium text-gray-800">
+                                <td className="px-5 py-3 font-medium text-gray-800 truncate">
                                   {customer.name}
                                 </td>
-                                <td className="px-5 py-3 text-gray-500">
+                                <td className="px-5 py-3 text-gray-500 truncate">
                                   {customer.contact}
                                 </td>
-                                <td className="px-5 py-3 text-gray-500">
+                                <td className="px-5 py-3 text-gray-500 truncate">
                                   {customer.phone}
                                 </td>
                                 <td className="px-5 py-3 text-right font-mono text-gray-700">
@@ -238,19 +223,6 @@ export default function FinancePage() {
                             </tr>
                           )}
                         </tbody>
-
-                        {loadingMore && (
-                          <tfoot>
-                            <tr>
-                              <td colSpan={6} className="px-5 py-4 text-center">
-                                <span className="inline-flex items-center gap-2 text-sm text-gray-400">
-                                  <Loader2 size={16} className="animate-spin" />
-                                  Loading more clients...
-                                </span>
-                              </td>
-                            </tr>
-                          </tfoot>
-                        )}
                       </table>
                     </div>
                   </>

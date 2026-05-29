@@ -53,12 +53,14 @@ export async function GET(request: NextRequest) {
       { status: 404 },
     );
 
-  // Get a token (cached if available, fresh login if not)
+  // Time the token step
+  console.time("getToken");
   const token = await getRevelationToken(
     profile.clientId,
     apiConnection,
     profile.apiPin,
   );
+  console.timeEnd("getToken");
 
   if (!token)
     return NextResponse.json(
@@ -66,7 +68,8 @@ export async function GET(request: NextRequest) {
       { status: 401 },
     );
 
-  // Fetch customers from Revelation API (one page at a time)
+  // Time the customer fetch step
+  console.time("fetchCustomers");
   const customersResponse = await fetch(
     `${apiConnection.api_base_url}/api/customers/customers`,
     {
@@ -83,6 +86,7 @@ export async function GET(request: NextRequest) {
       signal: AbortSignal.timeout(30000),
     },
   );
+  console.timeEnd("fetchCustomers");
 
   const responseText = await customersResponse.text();
   if (!responseText) {
