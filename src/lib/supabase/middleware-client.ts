@@ -2,9 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
+  // Start with a mutable copy of headers
+  // Strip any client-provided x-user-id — prevents forgery
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-user-id");
+
+  // Collect cookies that getUser() wants to refresh
+  // We apply them after, so we can build one clean response at the end
+  const pendingCookies: Array<{
+    name: string;
+    value: string;
+    options: Record<string, unknown>;
+  }> = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,10 +27,8 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
+          // Collect instead of building a response here
+          pendingCookies.push(...cookiesToSet);
         },
       },
     },
@@ -31,10 +38,24 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname.startsWith("/login");
-  const isPublicPath = isLoginPage;
+  // Stamp the verified user ID — route handlers read this instead of calling getUser()
+  if (user) {
+    requestHeaders.set("x-user-id", user.id);
+  }
 
-  if (!user && !isPublicPath) {
+  // Build one clean response with the stamped headers
+  const supabaseResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  // Apply any session-refresh cookies collected above
+  pendingCookies.forEach(({ name, value, options }) =>
+    supabaseResponse.cookies.set(name, value, options),
+  );
+
+  const isLoginPage = request.nextUrl.pathname.startsWith("/login");
+
+  if (!user && !isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

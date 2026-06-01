@@ -56,7 +56,7 @@ export default function FinancePage() {
 
       try {
         const response = await fetch(
-          `/api/customers?companyNr=${company.companyNr}&numberOfRecords=999999`,
+          `/api/customers?companyNr=${company.companyNr}&numberOfRecords=5000`,
         );
         const result = await response.json();
 
