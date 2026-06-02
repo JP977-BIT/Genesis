@@ -1,21 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/src/lib/supabase/client";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  //Function that will handle the log in Validation
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setError("");
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -31,19 +30,14 @@ export default function LoginPage() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-[#1B3D35]">
       {/* Branding Block */}
       <div className="flex flex-col items-center mb-8 gap-2">
-        {/* Logo circle */}
         <div className="w-16 h-16 rounded-full bg-[#c8dbd6] flex items-center justify-center mb-2">
           <span className="text-[#1B3D35] font-semibold text-sm tracking-widest">
             GEN
           </span>
         </div>
-
-        {/* App name */}
         <h1 className="text-white text-3xl font-semibold tracking-widest">
           GENESIS
         </h1>
-
-        {/* Tagline */}
         <p className="text-[#7aada0] text-xs tracking-[0.25em] uppercase">
           Revelation Operations Suite
         </p>
@@ -74,19 +68,32 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Password field */}
+          {/* Password Field */}
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="password"
+              className="text-sm font-medium text-gray-700"
+            >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="********"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1B3D35] focus:border-transparent transition"
-            ></input>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="********"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1B3D35] focus:border-transparent transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {/* Error message */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { prefetchCustomers } from "@/src/lib/prefetch/customers";
 
 interface Company {
   companyName: string;
@@ -24,7 +25,12 @@ export default function CompanySelectPage() {
         const result = await response.json();
 
         if (result.success) {
-          setCompanies(result.data.companies);
+          setCompanies(
+            [...result.data.companies].sort(
+              (a: Company, b: Company) =>
+                parseInt(a.companyNr, 10) - parseInt(b.companyNr, 10),
+            ),
+          );
         } else {
           setError("Failed to load companies");
         }
@@ -44,6 +50,7 @@ export default function CompanySelectPage() {
       companyNr: String(parseInt(company.companyNr, 10)),
     };
     localStorage.setItem("selectedCompany", JSON.stringify(cleanedCompany));
+    prefetchCustomers(cleanedCompany.companyNr);
     router.push("/home");
   };
 
@@ -80,9 +87,14 @@ export default function CompanySelectPage() {
                 onClick={() => handleSelectCompany(company)}
                 className="bg-white hover:bg-[#eaf2f0] rounded-2xl px-6 py-4 text-left transition duration-200 shadow-md"
               >
-                <p className="text-[#1B3D35] font-semibold text-sm">
-                  {company.companyName}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[#1B3D35] font-semibold text-sm">
+                    {company.companyName}
+                  </p>
+                  <span className="text-[10px] font-sans text-gray-400 shrink-0">
+                    {company.companyNr}
+                  </span>
+                </div>
                 <p className="text-gray-400 text-xs mt-1">
                   {company.address2} {company.address3}
                 </p>
