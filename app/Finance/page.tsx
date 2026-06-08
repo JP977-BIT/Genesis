@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   User,
@@ -82,10 +83,14 @@ function SortableHeader({
 }
 
 export default function FinancePage() {
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const searchParams = useSearchParams();
+  const [activeItem, setActiveItem] = useState(
+    () => searchParams.get("view") ?? "Dashboard",
+  );
   const [isExpanded, setIsExpanded] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const router = useRouter();
 
   // --- Search + sort state ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -371,7 +376,12 @@ export default function FinancePage() {
                               return (
                                 <tr
                                   key={customer.accNo}
-                                  className="hover:bg-gray-50 transition border-b border-gray-100"
+                                  onClick={() =>
+                                    router.push(
+                                      `/Finance/clients/${customer.accNo}`,
+                                    )
+                                  }
+                                  className="hover:bg-gray-50 transition border-b border-gray-100 cursor-pointer"
                                 >
                                   <td className="px-5 py-3 font-mono text-xs text-[#1B3D35] truncate">
                                     {customer.accNo}

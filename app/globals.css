@@ -1,1 +1,15 @@
 @import "tailwindcss";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
+
+/* ── Design system font utilities ── */
+.font-display {
+  font-family: var(--font-hanken), 'Hanken Grotesk', system-ui, sans-serif;
+}
+.font-body {
+  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
+}
+.font-data {
+  font-family: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}

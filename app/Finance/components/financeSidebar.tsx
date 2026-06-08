@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -9,7 +9,8 @@ import {
   GitBranch,
   Grid2X2,
   ChevronLeft,
-  ChevronRight,
+  Pin,
+  PinOff,
   Plus,
 } from "lucide-react";
 
@@ -42,11 +43,17 @@ const FinanceSidebar = memo(function FinanceSidebar({
   setActiveItem,
 }: SidebarProps) {
   const router = useRouter();
+  const [isPinned, setIsPinned] = useState(false);
+
+  const togglePin = () => {
+    if (!isPinned) setIsExpanded(true);
+    setIsPinned((v) => !v);
+  };
 
   return (
     <aside
       onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
+      onMouseLeave={() => { if (!isPinned) setIsExpanded(false); }}
       style={{
         width: isExpanded ? "192px" : "56px",
         backgroundColor: SIDEBAR_BG,
@@ -65,13 +72,15 @@ const FinanceSidebar = memo(function FinanceSidebar({
           <ChevronLeft size={16} />
         </button>
         <button
-          className="text-slate-400 hover:text-white transition"
+          onClick={togglePin}
+          className="ml-auto text-slate-400 hover:text-white transition"
+          title={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
           style={{
             opacity: isExpanded ? 1 : 0,
             transition: "opacity 200ms ease",
           }}
         >
-          <ChevronRight size={16} />
+          {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
         </button>
       </div>
 
