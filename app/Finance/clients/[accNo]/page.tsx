@@ -61,20 +61,31 @@ const MOCK_ACTIVITY = [
 ];
 
 const WIDGET_META: Record<string, { title: string }> = {
-  contact:  { title: "Contact Information" },
-  map:      { title: "Map Location" },
+  contact: { title: "Contact Information" },
+  map: { title: "Map Location" },
   finAdmin: { title: "Financial & Admin" },
-  notes:    { title: "Internal Notes" },
+  notes: { title: "Internal Notes" },
   activity: { title: "Recent Activity" },
+  ageAnalysis: { title: "Age Analysis" },
 };
+
+const DEFAULT_VISIBLE_WIDGETS = [
+  "contact",
+  "map",
+  "finAdmin",
+  "notes",
+  "activity",
+  "ageAnalysis",
+];
 
 const DEFAULT_LAYOUTS: ResponsiveLayouts = {
   lg: [
-    { i: "contact",  x: 0, y: 0, w: 7, h: 6, minW: 3, minH: 3 },
-    { i: "map",      x: 7, y: 0, w: 5, h: 3, minW: 2, minH: 2 },
+    { i: "contact", x: 0, y: 0, w: 7, h: 6, minW: 3, minH: 3 },
+    { i: "map", x: 7, y: 0, w: 5, h: 3, minW: 2, minH: 2 },
     { i: "finAdmin", x: 7, y: 3, w: 5, h: 6, minW: 3, minH: 3 },
-    { i: "notes",    x: 0, y: 6, w: 7, h: 5, minW: 3, minH: 3 },
+    { i: "notes", x: 0, y: 6, w: 7, h: 5, minW: 3, minH: 3 },
     { i: "activity", x: 7, y: 9, w: 5, h: 5, minW: 3, minH: 3 },
+    { i: "ageAnalysis", x: 0, y: 11, w: 12, h: 4, minW: 6, minH: 3 },
   ],
 };
 
@@ -112,7 +123,9 @@ function WidgetCard({
   headerExtra?: React.ReactNode;
 }) {
   return (
-    <div className={`${cardCls} flex flex-col h-full overflow-hidden select-none`}>
+    <div
+      className={`${cardCls} flex flex-col h-full overflow-hidden select-none`}
+    >
       <div className="widget-drag-handle flex items-center justify-between px-4 py-2.5 border-b border-[#c6c6cd] cursor-grab active:cursor-grabbing shrink-0">
         <div className="flex items-center gap-2">
           <GripHorizontal size={13} className="text-[#c6c6cd]" />
@@ -141,11 +154,11 @@ function WidgetCard({
 
 function ContactWidget({ customer }: { customer: Customer }) {
   const rows = [
-    { label: "Switchboard",        value: null,          icon: Phone },
-    { label: "Accounts Department",value: null,          icon: Phone },
-    { label: "Procurement",        value: null,          icon: Phone },
-    { label: "Cell Phone",         value: customer.phone, icon: Phone },
-    { label: "Fax",                value: customer.fax,  icon: Phone },
+    { label: "Switchboard", value: null, icon: Phone },
+    { label: "Accounts Department", value: null, icon: Phone },
+    { label: "Procurement", value: null, icon: Phone },
+    { label: "Cell Phone", value: customer.phone, icon: Phone },
+    { label: "Fax", value: customer.fax, icon: Phone },
   ].filter((r) => r.value !== undefined);
 
   return (
@@ -168,7 +181,9 @@ function ContactWidget({ customer }: { customer: Customer }) {
         <div className="flex items-center justify-between py-2.5">
           <div>
             <p className={`${labelCls} mb-0.5`}>Email</p>
-            <p className="text-[14px] text-[#0b1c30]">{customer.eMail.trim()}</p>
+            <p className="text-[14px] text-[#0b1c30]">
+              {customer.eMail.trim()}
+            </p>
           </div>
           <button className="w-7 h-7 rounded border border-[#c6c6cd]/60 bg-white hover:border-[#5bb8fe] hover:text-[#006398] flex items-center justify-center text-[#76777d] transition-colors">
             <Mail size={12} />
@@ -192,23 +207,100 @@ function MapWidget({ customer }: { customer: Customer }) {
           viewBox="0 0 300 160"
           preserveAspectRatio="xMidYMid slice"
         >
-          <line x1="0"   y1="55"  x2="300" y2="55"  stroke="#1e2d40" strokeWidth="9" />
-          <line x1="0"   y1="110" x2="300" y2="110" stroke="#1e2d40" strokeWidth="5" />
-          <line x1="70"  y1="0"   x2="70"  y2="160" stroke="#1e2d40" strokeWidth="11" />
-          <line x1="170" y1="0"   x2="170" y2="160" stroke="#1e2d40" strokeWidth="7" />
-          <line x1="240" y1="0"   x2="240" y2="160" stroke="#1e2d40" strokeWidth="4" />
-          <line x1="0"   y1="30"  x2="300" y2="30"  stroke="#1b2738" strokeWidth="2" />
-          <line x1="0"   y1="80"  x2="300" y2="80"  stroke="#1b2738" strokeWidth="2" />
-          <line x1="0"   y1="135" x2="300" y2="135" stroke="#1b2738" strokeWidth="2" />
-          <line x1="120" y1="0"   x2="120" y2="160" stroke="#1b2738" strokeWidth="2" />
-          <line x1="200" y1="0"   x2="200" y2="160" stroke="#1b2738" strokeWidth="2" />
-          <line x1="260" y1="0"   x2="260" y2="160" stroke="#1b2738" strokeWidth="2" />
-          <rect x="75"  y="60"  width="90" height="45" fill="#1a2838" rx="1" />
-          <rect x="175" y="60"  width="60" height="45" fill="#1a2838" rx="1" />
-          <rect x="0"   y="60"  width="65" height="45" fill="#1a2838" rx="1" />
-          <rect x="0"   y="115" width="65" height="40" fill="#1a2838" rx="1" />
-          <rect x="75"  y="115" width="90" height="40" fill="#1a2838" rx="1" />
-          <rect x="245" y="60"  width="55" height="45" fill="#1a2838" rx="1" />
+          <line
+            x1="0"
+            y1="55"
+            x2="300"
+            y2="55"
+            stroke="#1e2d40"
+            strokeWidth="9"
+          />
+          <line
+            x1="0"
+            y1="110"
+            x2="300"
+            y2="110"
+            stroke="#1e2d40"
+            strokeWidth="5"
+          />
+          <line
+            x1="70"
+            y1="0"
+            x2="70"
+            y2="160"
+            stroke="#1e2d40"
+            strokeWidth="11"
+          />
+          <line
+            x1="170"
+            y1="0"
+            x2="170"
+            y2="160"
+            stroke="#1e2d40"
+            strokeWidth="7"
+          />
+          <line
+            x1="240"
+            y1="0"
+            x2="240"
+            y2="160"
+            stroke="#1e2d40"
+            strokeWidth="4"
+          />
+          <line
+            x1="0"
+            y1="30"
+            x2="300"
+            y2="30"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <line
+            x1="0"
+            y1="80"
+            x2="300"
+            y2="80"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <line
+            x1="0"
+            y1="135"
+            x2="300"
+            y2="135"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <line
+            x1="120"
+            y1="0"
+            x2="120"
+            y2="160"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <line
+            x1="200"
+            y1="0"
+            x2="200"
+            y2="160"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <line
+            x1="260"
+            y1="0"
+            x2="260"
+            y2="160"
+            stroke="#1b2738"
+            strokeWidth="2"
+          />
+          <rect x="75" y="60" width="90" height="45" fill="#1a2838" rx="1" />
+          <rect x="175" y="60" width="60" height="45" fill="#1a2838" rx="1" />
+          <rect x="0" y="60" width="65" height="45" fill="#1a2838" rx="1" />
+          <rect x="0" y="115" width="65" height="40" fill="#1a2838" rx="1" />
+          <rect x="75" y="115" width="90" height="40" fill="#1a2838" rx="1" />
+          <rect x="245" y="60" width="55" height="45" fill="#1a2838" rx="1" />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="flex flex-col items-center">
@@ -231,12 +323,17 @@ function FinancialAdminWidget({ customer }: { customer: Customer }) {
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-4">
         <div>
           <p className={`${labelCls} mb-1`}>VAT Number</p>
-          <p className="text-[14px] text-[#0b1c30]">{customer.gstNumber || "—"}</p>
+          <p className="text-[14px] text-[#0b1c30]">
+            {customer.gstNumber || "—"}
+          </p>
         </div>
         <div>
           <p className={`${labelCls} mb-1`}>Credit Limit</p>
           <p className="font-data text-[14px] text-[#0b1c30]">
-            R {customer.creditLimit.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
+            R{" "}
+            {customer.creditLimit.toLocaleString("en-ZA", {
+              minimumFractionDigits: 2,
+            })}
           </p>
         </div>
         <div>
@@ -256,11 +353,15 @@ function FinancialAdminWidget({ customer }: { customer: Customer }) {
         <div className="grid grid-cols-3 gap-x-4 gap-y-3">
           <div>
             <p className={`${labelCls} mb-1`}>Rep Code</p>
-            <p className="text-[14px] text-[#0b1c30]">{customer.repCode || "—"}</p>
+            <p className="text-[14px] text-[#0b1c30]">
+              {customer.repCode || "—"}
+            </p>
           </div>
           <div>
             <p className={`${labelCls} mb-1`}>Area Code</p>
-            <p className="text-[14px] text-[#0b1c30]">{customer.category || "—"}</p>
+            <p className="text-[14px] text-[#0b1c30]">
+              {customer.category || "—"}
+            </p>
           </div>
           <div>
             <p className={`${labelCls} mb-1`}>Terms</p>
@@ -277,9 +378,9 @@ function NotesWidget() {
     <div className="p-3 h-full flex flex-col font-body">
       <div className="flex items-center gap-0.5 pb-2 mb-2 border-b border-[#c6c6cd]/40 shrink-0">
         {[
-          { Icon: Bold,          label: "Bold" },
-          { Icon: Italic,        label: "Italic" },
-          { Icon: Underline,     label: "Underline" },
+          { Icon: Bold, label: "Bold" },
+          { Icon: Italic, label: "Italic" },
+          { Icon: Underline, label: "Underline" },
           { Icon: Strikethrough, label: "Strikethrough" },
         ].map(({ Icon, label }) => (
           <button
@@ -292,8 +393,8 @@ function NotesWidget() {
         ))}
         <div className="w-px h-4 bg-[#c6c6cd] mx-1" />
         {[
-          { Icon: List,         label: "Bullet list" },
-          { Icon: ListOrdered,  label: "Numbered list" },
+          { Icon: List, label: "Bullet list" },
+          { Icon: ListOrdered, label: "Numbered list" },
         ].map(({ Icon, label }) => (
           <button
             key={label}
@@ -316,7 +417,7 @@ function ActivityWidget() {
   const typeCls: Record<string, string> = {
     INVOICE: "bg-[#eff4ff] text-[#006398] border border-[#c6c6cd]/60",
     PAYMENT: "bg-[#009668]/10 text-[#009668] border border-[#009668]/20",
-    CREDIT:  "bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20",
+    CREDIT: "bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20",
   };
 
   return (
@@ -331,9 +432,15 @@ function ActivityWidget() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-[#c6c6cd]/40">
-              <th className={`${labelCls} text-left pb-2 font-semibold`}>Date</th>
-              <th className={`${labelCls} text-left pb-2 font-semibold`}>Type</th>
-              <th className={`${labelCls} text-right pb-2 font-semibold`}>Amount</th>
+              <th className={`${labelCls} text-left pb-2 font-semibold`}>
+                Date
+              </th>
+              <th className={`${labelCls} text-left pb-2 font-semibold`}>
+                Type
+              </th>
+              <th className={`${labelCls} text-right pb-2 font-semibold`}>
+                Amount
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -342,20 +449,90 @@ function ActivityWidget() {
                 key={i}
                 className={`border-b border-[#c6c6cd]/30 last:border-0 ${i % 2 === 1 ? "bg-[#f8f9ff]" : "bg-white"}`}
               >
-                <td className="py-2.5 text-[13px] text-[#45464d]">{row.date}</td>
+                <td className="py-2.5 text-[13px] text-[#45464d]">
+                  {row.date}
+                </td>
                 <td className="py-2.5">
-                  <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-xl ${typeCls[row.type]}`}>
+                  <span
+                    className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-xl ${typeCls[row.type]}`}
+                  >
                     {row.type}
                   </span>
                 </td>
-                <td className={`py-2.5 text-right font-data text-[13px] ${row.amount < 0 ? "text-[#009668]" : "text-[#0b1c30]"}`}>
+                <td
+                  className={`py-2.5 text-right font-data text-[13px] ${row.amount < 0 ? "text-[#009668]" : "text-[#0b1c30]"}`}
+                >
                   {row.amount < 0 ? "− " : ""}R{" "}
-                  {Math.abs(row.amount).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
+                  {Math.abs(row.amount).toLocaleString("en-ZA", {
+                    minimumFractionDigits: 2,
+                  })}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function AgeAnalysisWidget({ customer }: { customer: Customer }) {
+  // Mock data for now — replace with real ageing data when available from the API.
+  // `customer` is destructured for future use when wiring real data.
+  void customer;
+
+  const asOfDate = "Oct 24, 2024";
+  const buckets = [
+    { label: "Current", amount: 120340.0 },
+    { label: "30 Days", amount: 4200.0 },
+    { label: "60 Days", amount: 0 },
+    { label: "90 Days", amount: 0 },
+    { label: "120 Days", amount: 0 },
+    { label: "150 Days", amount: 0 },
+    { label: "180+ Days", amount: 0 },
+  ];
+
+  const total = buckets.reduce((sum, b) => sum + b.amount, 0);
+
+  const formatAmount = (n: number) =>
+    n.toLocaleString("en-ZA", { minimumFractionDigits: 2 });
+
+  return (
+    <div className="px-4 py-3 h-full flex flex-col font-body">
+      {/* Header row with "As of" date */}
+      <div className="flex items-center justify-between mb-3 shrink-0">
+        <p className={labelCls}>Ageing buckets</p>
+        <p className="font-body text-[12px] text-[#76777d]">As of {asOfDate}</p>
+      </div>
+
+      {/* Bucket grid — 7 columns, one per ageing bucket */}
+      <div className="grid grid-cols-7 gap-2 mb-3">
+        {buckets.map((b) => {
+          const isOverdue = b.label !== "Current" && b.amount > 0;
+          return (
+            <div
+              key={b.label}
+              className="border border-[#c6c6cd] rounded p-2 bg-white flex flex-col"
+            >
+              <p className={`${labelCls} mb-1 text-[10px]`}>{b.label}</p>
+              <p
+                className={`font-data text-[13px] font-semibold ${
+                  isOverdue ? "text-[#ba1a1a]" : "text-[#0b1c30]"
+                }`}
+              >
+                R {formatAmount(b.amount)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Total outstanding footer */}
+      <div className="flex items-center justify-between border-t border-[#c6c6cd] pt-2.5 mt-auto shrink-0">
+        <p className={labelCls}>Total Outstanding Balance</p>
+        <p className="font-data text-[14px] font-bold text-[#0b1c30]">
+          R {formatAmount(total)}
+        </p>
       </div>
     </div>
   );
@@ -377,7 +554,7 @@ export default function ClientDetailPage() {
   const { width, containerRef, mounted } = useContainerWidth();
   const [showCustomize, setShowCustomize] = useState(false);
   const [visibleWidgets, setVisibleWidgets] = useState<Set<string>>(
-    () => new Set(["contact", "map", "finAdmin", "notes", "activity"]),
+    () => new Set(DEFAULT_VISIBLE_WIDGETS),
   );
   const [layouts, setLayouts] = useState<ResponsiveLayouts>(DEFAULT_LAYOUTS);
 
@@ -425,7 +602,9 @@ export default function ClientDetailPage() {
   const handleLayoutChange = useCallback(
     (_: unknown, allLayouts: ResponsiveLayouts) => {
       setLayouts(allLayouts);
-      try { localStorage.setItem(`layout:${accNo}`, JSON.stringify(allLayouts)); } catch {}
+      try {
+        localStorage.setItem(`layout:${accNo}`, JSON.stringify(allLayouts));
+      } catch {}
     },
     [accNo],
   );
@@ -435,7 +614,9 @@ export default function ClientDetailPage() {
       setVisibleWidgets((prev) => {
         const next = new Set(prev);
         next.delete(id);
-        try { localStorage.setItem(`widgets:${accNo}`, JSON.stringify([...next])); } catch {}
+        try {
+          localStorage.setItem(`widgets:${accNo}`, JSON.stringify([...next]));
+        } catch {}
         return next;
       });
     },
@@ -446,8 +627,11 @@ export default function ClientDetailPage() {
     (id: string) => {
       setVisibleWidgets((prev) => {
         const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        try { localStorage.setItem(`widgets:${accNo}`, JSON.stringify([...next])); } catch {}
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        try {
+          localStorage.setItem(`widgets:${accNo}`, JSON.stringify([...next]));
+        } catch {}
         return next;
       });
     },
@@ -456,21 +640,31 @@ export default function ClientDetailPage() {
 
   const resetLayout = useCallback(() => {
     setLayouts(DEFAULT_LAYOUTS);
-    setVisibleWidgets(new Set(["contact", "map", "finAdmin", "notes", "activity"]));
+    setVisibleWidgets(new Set(DEFAULT_VISIBLE_WIDGETS));
     try {
       localStorage.removeItem(`layout:${accNo}`);
       localStorage.removeItem(`widgets:${accNo}`);
     } catch {}
   }, [accNo]);
 
-  const initials = customer?.name
-    .split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase() ?? "?";
+  const initials =
+    customer?.name
+      .split(" ")
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() ?? "?";
 
   const totalOutstanding = customer?.balance ?? 0;
-  const creditAvailable = Math.max(0, (customer?.creditLimit ?? 0) - (customer?.balance ?? 0));
+  const creditAvailable = Math.max(
+    0,
+    (customer?.creditLimit ?? 0) - (customer?.balance ?? 0),
+  );
 
   const filteredLayout = {
-    lg: (layouts.lg ?? DEFAULT_LAYOUTS.lg!).filter((l) => visibleWidgets.has(l.i)),
+    lg: (layouts.lg ?? DEFAULT_LAYOUTS.lg!).filter((l) =>
+      visibleWidgets.has(l.i),
+    ),
   };
 
   return (
@@ -484,7 +678,6 @@ export default function ClientDetailPage() {
         />
 
         <div className="flex flex-col flex-1 overflow-hidden">
-
           {/* ── App header ── */}
           <header className="h-12 bg-white border-b border-[#c6c6cd] flex items-center justify-between px-4 shrink-0 shadow-[0px_1px_2px_rgba(15,23,42,0.05)]">
             <div className="flex items-center gap-3">
@@ -495,7 +688,9 @@ export default function ClientDetailPage() {
               </div>
               <p className="font-body text-sm text-[#45464d]">
                 Revelation Suite —{" "}
-                <span className="font-semibold text-[#0b1c30] tracking-wide">FINANCE</span>
+                <span className="font-semibold text-[#0b1c30] tracking-wide">
+                  FINANCE
+                </span>
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -510,201 +705,262 @@ export default function ClientDetailPage() {
 
           {/* ── Scrollable body ── */}
           <main className="flex-1 overflow-y-auto">
-            {loading && (
-              <div className="flex items-center justify-center h-full">
-                <p className="font-body text-sm text-[#76777d]">Loading client…</p>
-              </div>
-            )}
-            {error && (
-              <div className="flex items-center justify-center h-full">
-                <p className="font-body text-sm text-[#ba1a1a]">{error}</p>
-              </div>
-            )}
+            {/* The grid's ref container (below) must stay mounted at all times.
+                useContainerWidth attaches its ResizeObserver in an effect that
+                runs once and bails if containerRef.current is null. Gating it
+                behind `customer` left the ref null on first render, so the grid
+                was stuck at the default initialWidth (1280px). */}
+            <div className="p-5 space-y-4">
+              {loading && (
+                <div className="flex items-center justify-center py-20">
+                  <p className="font-body text-sm text-[#76777d]">
+                    Loading client…
+                  </p>
+                </div>
+              )}
+              {error && (
+                <div className="flex items-center justify-center py-20">
+                  <p className="font-body text-sm text-[#ba1a1a]">{error}</p>
+                </div>
+              )}
 
-            {customer && (
-              <div className="p-5 space-y-4">
-
-                {/* ── Client header card ── */}
-                <div className={`${cardCls} px-5 py-4 flex items-center justify-between`}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-[#131b2e] flex items-center justify-center shrink-0">
-                      <span className="font-display text-white text-sm font-semibold">{initials}</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <h1 className="font-display text-[20px] font-semibold leading-7 text-[#0b1c30]">
-                          {customer.name}
-                        </h1>
-                        {customer.category && (
-                          <span className="font-body text-[14px] text-[#45464d]">
-                            ({customer.category})
-                          </span>
-                        )}
-                        <span
-                          className={`font-body text-[11px] font-semibold px-2.5 py-0.5 rounded-xl border ${
-                            customer.activeYN
-                              ? "bg-[#009668]/10 text-[#009668] border-[#009668]/25"
-                              : "bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/25"
-                          }`}
-                        >
-                          {customer.activeYN ? "Active" : "Inactive"}
+              {customer && (
+                <>
+                  {/* ── Client header card ── */}
+                  <div
+                    className={`${cardCls} px-5 py-4 flex items-center justify-between`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-[#131b2e] flex items-center justify-center shrink-0">
+                        <span className="font-display text-white text-sm font-semibold">
+                          {initials}
                         </span>
                       </div>
-                      {customer.eMail?.trim() && (
-                        <p className="font-body text-[13px] text-[#45464d] mt-0.5">
-                          {customer.eMail.trim()}
-                        </p>
-                      )}
+                      <div>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h1 className="font-display text-[20px] font-semibold leading-7 text-[#0b1c30]">
+                            {customer.name}
+                          </h1>
+                          {customer.category && (
+                            <span className="font-body text-[14px] text-[#45464d]">
+                              ({customer.category})
+                            </span>
+                          )}
+                          <span
+                            className={`font-body text-[11px] font-semibold px-2.5 py-0.5 rounded-xl border ${
+                              customer.activeYN
+                                ? "bg-[#009668]/10 text-[#009668] border-[#009668]/25"
+                                : "bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/25"
+                            }`}
+                          >
+                            {customer.activeYN ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                        {customer.eMail?.trim() && (
+                          <p className="font-body text-[13px] text-[#45464d] mt-0.5">
+                            {customer.eMail.trim()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button className={btnSecondaryCls}>
+                        <Download size={13} /> Export
+                      </button>
+                      <button className={btnSecondaryCls}>
+                        <Edit3 size={13} /> Edit Client
+                      </button>
+                      <button className={btnPrimaryCls}>
+                        <Plus size={13} /> New Entry
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button className={btnSecondaryCls}>
-                      <Download size={13} /> Export
-                    </button>
-                    <button className={btnSecondaryCls}>
-                      <Edit3 size={13} /> Edit Client
-                    </button>
-                    <button className={btnPrimaryCls}>
-                      <Plus size={13} /> New Entry
-                    </button>
+                  {/* ── KPI banner ── */}
+                  <div
+                    className={`${cardCls} px-5 py-4 grid grid-cols-3 divide-x divide-[#c6c6cd]`}
+                  >
+                    <div className="pr-8">
+                      <p className={`${labelCls} mb-1.5`}>Total Outstanding</p>
+                      <p className="font-data text-[20px] font-bold text-[#0b1c30]">
+                        R{" "}
+                        {totalOutstanding.toLocaleString("en-ZA", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                    <div className="px-8">
+                      <p className={`${labelCls} mb-1.5`}>Overdue</p>
+                      <p className="font-data text-[20px] font-bold text-[#ba1a1a]">
+                        R 0.00
+                      </p>
+                    </div>
+                    <div className="pl-8">
+                      <p className={`${labelCls} mb-1.5`}>Credit Available</p>
+                      <p className="font-data text-[20px] font-bold text-[#009668]">
+                        R{" "}
+                        {creditAvailable.toLocaleString("en-ZA", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* ── KPI banner ── */}
-                <div className={`${cardCls} px-5 py-4 grid grid-cols-3 divide-x divide-[#c6c6cd]`}>
-                  <div className="pr-8">
-                    <p className={`${labelCls} mb-1.5`}>Total Outstanding</p>
-                    <p className="font-data text-[20px] font-bold text-[#0b1c30]">
-                      R {totalOutstanding.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
+                  {/* ── Widget toolbar ── */}
+                  <div className="flex items-center justify-between">
+                    <p className="font-body text-[13px] text-[#76777d]">
+                      Drag widgets to rearrange · Resize from the corner
                     </p>
-                  </div>
-                  <div className="px-8">
-                    <p className={`${labelCls} mb-1.5`}>Overdue</p>
-                    <p className="font-data text-[20px] font-bold text-[#ba1a1a]">R 0.00</p>
-                  </div>
-                  <div className="pl-8">
-                    <p className={`${labelCls} mb-1.5`}>Credit Available</p>
-                    <p className="font-data text-[20px] font-bold text-[#009668]">
-                      R {creditAvailable.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
+                    <div className="flex items-center gap-2 relative">
+                      <button
+                        onClick={resetLayout}
+                        className={`${btnSecondaryCls} h-7 px-3 text-[12px]`}
+                        title="Reset layout"
+                      >
+                        <RotateCcw size={12} /> Reset
+                      </button>
+                      <button
+                        onClick={() => setShowCustomize((v) => !v)}
+                        className={`h-7 px-3 rounded border text-[12px] font-medium font-body flex items-center gap-1.5 transition-colors shadow-[0px_1px_2px_rgba(15,23,42,0.05)] ${
+                          showCustomize
+                            ? "bg-[#0b1c30] text-white border-[#0b1c30]"
+                            : "bg-white border-[#c6c6cd] text-[#0b1c30] hover:bg-[#f8f9ff] hover:border-[#5bb8fe]"
+                        }`}
+                      >
+                        <LayoutDashboard size={12} /> Customise
+                      </button>
 
-                {/* ── Widget toolbar ── */}
-                <div className="flex items-center justify-between">
-                  <p className="font-body text-[13px] text-[#76777d]">
-                    Drag widgets to rearrange · Resize from the corner
-                  </p>
-                  <div className="flex items-center gap-2 relative">
-                    <button
-                      onClick={resetLayout}
-                      className={`${btnSecondaryCls} h-7 px-3 text-[12px]`}
-                      title="Reset layout"
-                    >
-                      <RotateCcw size={12} /> Reset
-                    </button>
-                    <button
-                      onClick={() => setShowCustomize((v) => !v)}
-                      className={`h-7 px-3 rounded border text-[12px] font-medium font-body flex items-center gap-1.5 transition-colors shadow-[0px_1px_2px_rgba(15,23,42,0.05)] ${
-                        showCustomize
-                          ? "bg-[#0b1c30] text-white border-[#0b1c30]"
-                          : "bg-white border-[#c6c6cd] text-[#0b1c30] hover:bg-[#f8f9ff] hover:border-[#5bb8fe]"
-                      }`}
-                    >
-                      <LayoutDashboard size={12} /> Customise
-                    </button>
-
-                    {/* Customise dropdown */}
-                    {showCustomize && (
-                      <div className="absolute right-0 top-9 z-50 w-56 bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_4px_12px_rgba(15,23,42,0.08)] p-2">
-                        <p className={`${labelCls} px-2 py-1.5`}>Toggle Widgets</p>
-                        {Object.entries(WIDGET_META).map(([id, meta]) => (
-                          <button
-                            key={id}
-                            onClick={() => toggleWidget(id)}
-                            className="w-full flex items-center justify-between px-2 py-2 rounded hover:bg-[#eff4ff] transition-colors text-left"
-                          >
-                            <span className="font-body text-[13px] text-[#0b1c30]">
-                              {meta.title}
-                            </span>
-                            <div
-                              className={`w-8 h-[18px] rounded-full transition-colors relative flex-shrink-0 ${
-                                visibleWidgets.has(id) ? "bg-[#006398]" : "bg-[#c6c6cd]"
-                              }`}
+                      {/* Customise dropdown */}
+                      {showCustomize && (
+                        <div className="absolute right-0 top-9 z-50 w-56 bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_4px_12px_rgba(15,23,42,0.08)] p-2">
+                          <p className={`${labelCls} px-2 py-1.5`}>
+                            Toggle Widgets
+                          </p>
+                          {Object.entries(WIDGET_META).map(([id, meta]) => (
+                            <button
+                              key={id}
+                              onClick={() => toggleWidget(id)}
+                              className="w-full flex items-center justify-between px-2 py-2 rounded hover:bg-[#eff4ff] transition-colors text-left"
                             >
+                              <span className="font-body text-[13px] text-[#0b1c30]">
+                                {meta.title}
+                              </span>
                               <div
-                                className={`absolute top-[3px] w-3 h-3 rounded-full bg-white shadow-sm transition-all ${
-                                  visibleWidgets.has(id) ? "left-[17px]" : "left-[3px]"
+                                className={`w-8 h-[18px] rounded-full transition-colors relative flex-shrink-0 ${
+                                  visibleWidgets.has(id)
+                                    ? "bg-[#006398]"
+                                    : "bg-[#c6c6cd]"
                                 }`}
-                              />
-                            </div>
-                          </button>
-                        ))}
+                              >
+                                <div
+                                  className={`absolute top-[3px] w-3 h-3 rounded-full bg-white shadow-sm transition-all ${
+                                    visibleWidgets.has(id)
+                                      ? "left-[17px]"
+                                      : "left-[3px]"
+                                  }`}
+                                />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── Widget grid (ref container is always mounted) ── */}
+              <div
+                ref={containerRef}
+                onClick={() => showCustomize && setShowCustomize(false)}
+              >
+                {mounted && customer && (
+                  <ResponsiveGridLayout
+                    className="layout"
+                    width={width}
+                    layouts={filteredLayout}
+                    breakpoints={{ lg: 1200, md: 768 }}
+                    cols={{ lg: 12, md: 10 }}
+                    rowHeight={50}
+                    margin={[12, 12]}
+                    containerPadding={[0, 0]}
+                    dragConfig={{ handle: ".widget-drag-handle" }}
+                    onLayoutChange={handleLayoutChange}
+                    resizeConfig={{ handles: ["se"] }}
+                  >
+                    {visibleWidgets.has("contact") && (
+                      <div key="contact">
+                        <WidgetCard
+                          id="contact"
+                          title="Contact Information"
+                          onRemove={removeWidget}
+                        >
+                          <ContactWidget customer={customer} />
+                        </WidgetCard>
                       </div>
                     )}
-                  </div>
-                </div>
+                    {visibleWidgets.has("map") && (
+                      <div key="map">
+                        <WidgetCard
+                          id="map"
+                          title="Map Location"
+                          onRemove={removeWidget}
+                        >
+                          <MapWidget customer={customer} />
+                        </WidgetCard>
+                      </div>
+                    )}
+                    {visibleWidgets.has("finAdmin") && (
+                      <div key="finAdmin">
+                        <WidgetCard
+                          id="finAdmin"
+                          title="Financial & Admin"
+                          onRemove={removeWidget}
+                        >
+                          <FinancialAdminWidget customer={customer} />
+                        </WidgetCard>
+                      </div>
+                    )}
+                    {visibleWidgets.has("notes") && (
+                      <div key="notes">
+                        <WidgetCard
+                          id="notes"
+                          title="Internal Notes"
+                          onRemove={removeWidget}
+                        >
+                          <NotesWidget />
+                        </WidgetCard>
+                      </div>
+                    )}
+                    {visibleWidgets.has("activity") && (
+                      <div key="activity">
+                        <WidgetCard
+                          id="activity"
+                          title="Recent Activity"
+                          onRemove={removeWidget}
+                        >
+                          <ActivityWidget />
+                        </WidgetCard>
+                      </div>
+                    )}
+                    {visibleWidgets.has("ageAnalysis") && (
+                      <div key="ageAnalysis">
+                        <WidgetCard
+                          id="ageAnalysis"
+                          title="Age Analysis"
+                          onRemove={removeWidget}
+                        >
+                          <AgeAnalysisWidget customer={customer} />
+                        </WidgetCard>
+                      </div>
+                    )}
+                  </ResponsiveGridLayout>
+                )}
+              </div>
 
-                {/* ── Widget grid ── */}
-                <div
-                  ref={containerRef}
-                  onClick={() => showCustomize && setShowCustomize(false)}
-                >
-                  {mounted && (
-                    <ResponsiveGridLayout
-                      className="layout"
-                      width={width}
-                      layouts={filteredLayout}
-                      breakpoints={{ lg: 1200, md: 768 }}
-                      cols={{ lg: 12, md: 10 }}
-                      rowHeight={50}
-                      margin={[12, 12]}
-                      containerPadding={[0, 0]}
-                      dragConfig={{ handle: ".widget-drag-handle" }}
-                      onLayoutChange={handleLayoutChange}
-                      resizeConfig={{ handles: ["se"] }}
-                    >
-                      {visibleWidgets.has("contact") && (
-                        <div key="contact">
-                          <WidgetCard id="contact" title="Contact Information" onRemove={removeWidget}>
-                            <ContactWidget customer={customer} />
-                          </WidgetCard>
-                        </div>
-                      )}
-                      {visibleWidgets.has("map") && (
-                        <div key="map">
-                          <WidgetCard id="map" title="Map Location" onRemove={removeWidget}>
-                            <MapWidget customer={customer} />
-                          </WidgetCard>
-                        </div>
-                      )}
-                      {visibleWidgets.has("finAdmin") && (
-                        <div key="finAdmin">
-                          <WidgetCard id="finAdmin" title="Financial & Admin" onRemove={removeWidget}>
-                            <FinancialAdminWidget customer={customer} />
-                          </WidgetCard>
-                        </div>
-                      )}
-                      {visibleWidgets.has("notes") && (
-                        <div key="notes">
-                          <WidgetCard id="notes" title="Internal Notes" onRemove={removeWidget}>
-                            <NotesWidget />
-                          </WidgetCard>
-                        </div>
-                      )}
-                      {visibleWidgets.has("activity") && (
-                        <div key="activity">
-                          <WidgetCard id="activity" title="Recent Activity" onRemove={removeWidget}>
-                            <ActivityWidget />
-                          </WidgetCard>
-                        </div>
-                      )}
-                    </ResponsiveGridLayout>
-                  )}
-                </div>
-
-                {/* ── Footer ── */}
+              {/* ── Footer ── */}
+              {customer && (
                 <div className="flex items-center justify-end pb-5">
                   <button
                     onClick={() => router.push("/Finance?view=Clients")}
@@ -713,8 +969,8 @@ export default function ClientDetailPage() {
                     ← Back to Clients
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </main>
         </div>
       </div>
