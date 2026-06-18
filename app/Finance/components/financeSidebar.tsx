@@ -43,11 +43,15 @@ const FinanceSidebar = memo(function FinanceSidebar({
   setActiveItem,
 }: SidebarProps) {
   const router = useRouter();
-  const [isPinned, setIsPinned] = useState(false);
+  const [isPinned, setIsPinned] = useState(
+    () => localStorage.getItem("sidebar-pinned") === "true"
+  );
 
   const togglePin = () => {
-    if (!isPinned) setIsExpanded(true);
-    setIsPinned((v) => !v);
+    const next = !isPinned;
+    localStorage.setItem("sidebar-pinned", String(next));
+    if (next) setIsExpanded(true);
+    setIsPinned(next);
   };
 
   return (

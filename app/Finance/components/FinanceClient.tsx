@@ -85,7 +85,9 @@ export default function FinanceClient() {
   const [activeItem, setActiveItem] = useState(
     () => searchParams.get("view") ?? "Dashboard",
   );
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("sidebar-pinned") === "true"
+  );
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const router = useRouter();

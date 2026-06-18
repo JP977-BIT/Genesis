@@ -11,6 +11,8 @@ import {
   Plus,
   User,
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import FinanceSidebar from "@/app/Finance/components/financeSidebar";
 
@@ -36,17 +38,81 @@ interface Customer {
   activeYN: boolean;
 }
 
+interface AgeAnalysis {
+  accNo: string;
+  accName: string;
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  days120: number;
+  days150: number;
+  days180: number;
+}
+
+interface InvoiceLine {
+  mTranKey: string;
+  lineNo: number;
+  stockCode: string;
+  description: string;
+  price: number;
+  taxCode: string;
+  quantity: number;
+  discPerCent: number;
+  lineTotal: number;
+  exclTotal: number;
+  costPrice: number;
+  docNo: string;
+}
+
+interface Invoice {
+  headerKey: string;
+  docNo: string;
+  tranType: string;
+  accNo: string;
+  accName: string;
+  date: string;
+  orderNo: string;
+  repCode: string;
+  discPerCent: number;
+  goodsValue: number;
+  discount: number;
+  freight: number;
+  tax: number;
+  total: number;
+  numberOfLines: number;
+  body: InvoiceLine[];
+}
+
+const fmt = (n: number) =>
+  `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
+
+const isCreditNote = (tranType: string) => /^c/i.test(tranType.trim());
+
 export default function ClientDetailPage() {
   const router = useRouter();
   const params = useParams();
   const accNo = params.accNo as string;
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("sidebar-pinned") === "true",
+  );
   const [activeNavItem, setActiveNavItem] = useState("Clients");
+  const [notes, setNotes] = useState("");
 
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [ageAnalysis, setAgeAnalysis] = useState<AgeAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("Details");
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+  const [txFilter, setTxFilter] = useState<"all" | "invoice" | "credit">("all");
+  const [lineItems, setLineItems] = useState<Record<string, InvoiceLine[]>>({});
+  const [loadingLines, setLoadingLines] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!accNo) return;
@@ -70,17 +136,18 @@ export default function ClientDetailPage() {
     let isActive = true;
 
     (async () => {
+      // ── Customer (critical — its own safety net) ──
       try {
-        const res = await fetch(
+        const customerRes = await fetch(
           `/api/customers/customer?companyNr=${company.companyNr}&accNo=${accNo}`,
         );
-        const result = await res.json();
-        const data = result?.data?.data?.customer;
+        const customerResult = await customerRes.json();
 
         if (!isActive) return;
 
-        if (result.success && data) {
-          setCustomer(data);
+        const customerData = customerResult?.data?.data?.customer;
+        if (customerResult.success && customerData) {
+          setCustomer(customerData);
         } else {
           setError("Customer not found.");
         }
@@ -89,6 +156,24 @@ export default function ClientDetailPage() {
       } finally {
         if (isActive) setLoading(false);
       }
+
+      // ── Age Analysis (non-critical — its own safety net) ──
+      try {
+        const ageRes = await fetch(
+          `/api/customers/ageanalysis?companyNr=${company.companyNr}&accNo=${accNo}`,
+        );
+        const ageResult = await ageRes.json();
+
+        if (!isActive) return;
+
+        const ageData = ageResult?.data?.data?.ageAnalysis;
+        if (ageResult.success && ageData) {
+          setAgeAnalysis(ageData);
+        }
+      } catch {
+        // Age analysis is optional — if it fails, buckets just stay at R 0.00.
+        // We deliberately do NOT setError here, so the page still loads.
+      }
     })();
 
     return () => {
@@ -96,12 +181,89 @@ export default function ClientDetailPage() {
     };
   }, [accNo]);
 
+  useEffect(() => {
+    if (activeTab !== "Financials" || !customer) return;
+
+    const stored = localStorage.getItem("selectedCompany");
+    if (!stored) return;
+
+    let company: { companyNr: string };
+    try {
+      company = JSON.parse(stored);
+    } catch {
+      return;
+    }
+
+    let isActive = true;
+    setInvoicesLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/customertransactions/invoices?companyNr=${company.companyNr}&accNo=${accNo}`,
+        );
+        const result = await res.json();
+        if (!isActive) return;
+        if (result.success && result.data?.invoices) {
+          setInvoices(result.data.invoices);
+        }
+      } catch {
+        // silently fail — invoices are non-critical
+      } finally {
+        if (isActive) setInvoicesLoading(false);
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeTab, accNo, customer]);
+
+  const fetchLineItems = async (docNo: string) => {
+    if (lineItems[docNo] || loadingLines[docNo]) return;
+
+    const stored = localStorage.getItem("selectedCompany");
+    if (!stored) return;
+
+    let company: { companyNr: string };
+    try {
+      company = JSON.parse(stored);
+    } catch {
+      return;
+    }
+
+    setLoadingLines((prev) => ({ ...prev, [docNo]: true }));
+    try {
+      const res = await fetch(
+        `/api/customertransactions/invoice?companyNr=${company.companyNr}&invoiceNr=${docNo}&warehouseNr=0`,
+      );
+      const result = await res.json();
+      const body = result?.data?.invoice?.body ?? [];
+      setLineItems((prev) => ({ ...prev, [docNo]: body }));
+    } catch {
+      setLineItems((prev) => ({ ...prev, [docNo]: [] }));
+    } finally {
+      setLoadingLines((prev) => ({ ...prev, [docNo]: false }));
+    }
+  };
+
   // Derived values (with safe fallbacks while loading)
   const totalOutstanding = customer?.balance ?? 0;
   const creditAvailable = Math.max(
     0,
     (customer?.creditLimit ?? 0) - (customer?.balance ?? 0),
   );
+
+  // Age buckets, paired with their real values (fall back to 0 while loading)
+  const ageBuckets = [
+    { label: "CURRENT", value: ageAnalysis?.current ?? 0 },
+    { label: "30 DAYS", value: ageAnalysis?.days30 ?? 0 },
+    { label: "60 DAYS", value: ageAnalysis?.days60 ?? 0 },
+    { label: "90 DAYS", value: ageAnalysis?.days90 ?? 0 },
+    { label: "120 DAYS", value: ageAnalysis?.days120 ?? 0 },
+    { label: "150 DAYS", value: ageAnalysis?.days150 ?? 0 },
+    { label: "180+ DAYS", value: ageAnalysis?.days180 ?? 0 },
+  ];
 
   return (
     <div className="flex h-screen bg-[#f8f9ff] font-body">
@@ -113,13 +275,14 @@ export default function ClientDetailPage() {
       />
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* ── Loading / error states ── */}
+        {/* ── Loading state ── */}
         {loading && (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-[#76777d]">Loading client…</p>
           </div>
         )}
 
+        {/* ── Error state ── */}
         {error && !loading && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
             <p className="text-sm text-[#ba1a1a]">{error}</p>
@@ -184,8 +347,9 @@ export default function ClientDetailPage() {
               ].map((tab) => (
                 <button
                   key={tab}
+                  onClick={() => setActiveTab(tab)}
                   className={`py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    tab === "Details"
+                    tab === activeTab
                       ? "border-[#006398] text-[#006398]"
                       : "border-transparent text-[#45464d] hover:text-[#0b1c30]"
                   }`}
@@ -196,8 +360,10 @@ export default function ClientDetailPage() {
             </nav>
 
             {/* ── Scrollable body ── */}
-            <main className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Financial Summary */}
+            <main className="flex-1 overflow-y-auto p-6">
+              {activeTab === "Details" && (
+              <div className="space-y-5">
+              {/* ── Financial Summary ── */}
               <section>
                 <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
                   Financial Summary
@@ -230,14 +396,14 @@ export default function ClientDetailPage() {
                 </div>
               </section>
 
-              {/* Contact + Financial & Admin card */}
-              <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] flex">
-                {/* Contact Information */}
-                <div className="flex-1 p-6 border-r border-[#c6c6cd]">
-                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-1">
+              {/* ── Three column cards ── */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* ── Column 1: Contact Information ── */}
+                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
                     Contact Information
                   </h3>
-                  <div>
+                  <div className="flex flex-col flex-1">
                     {[
                       {
                         label: "Contact Person",
@@ -289,12 +455,12 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
 
-                {/* Financial & Admin */}
-                <div className="flex-1 p-6">
+                {/* ── Column 2: Financial & Admin ── */}
+                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
                   <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
                     Financial & Admin
                   </h3>
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-5 mb-6">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
                     <div>
                       <p className={`${labelCls} mb-1`}>VAT Number</p>
                       <p className="text-[14px] text-[#0b1c30]">
@@ -326,7 +492,7 @@ export default function ClientDetailPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
                       CLASSIFICATION
                     </p>
-                    <div className="grid grid-cols-3 gap-x-6">
+                    <div className="grid grid-cols-3 gap-x-4">
                       <div>
                         <p className={`${labelCls} mb-1`}>Rep Code</p>
                         <p className="text-[14px] text-[#0b1c30]">
@@ -346,9 +512,35 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* ── Column 3: Internal Notes ── */}
+                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
+                    Internal Notes
+                  </h3>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add internal notes about this client…"
+                    className="flex-1 w-full resize-none text-[14px] text-[#0b1c30] placeholder:text-[#b0b1b8] focus:outline-none leading-relaxed min-h-[180px]"
+                  />
+                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#c6c6cd]/40">
+                    <p className="text-[11px] text-[#b0b1b8]">
+                      {notes.length > 0
+                        ? `${notes.length} characters`
+                        : "Not saved yet"}
+                    </p>
+                    <button
+                      onClick={() => alert("Notes saving coming soon!")}
+                      className="h-7 px-3 rounded bg-[#0b1c30] text-white text-[12px] font-medium hover:bg-[#131b2e] transition-colors"
+                    >
+                      Save Notes
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Age Analysis */}
+              {/* ── Age Analysis ── */}
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-[15px] font-semibold text-[#0b1c30]">
@@ -360,39 +552,26 @@ export default function ClientDetailPage() {
                 </div>
                 <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
                   <div className="grid grid-cols-7 divide-x divide-[#c6c6cd] border-b border-[#c6c6cd] bg-[#f8f9ff]">
-                    {[
-                      "CURRENT",
-                      "30 DAYS",
-                      "60 DAYS",
-                      "90 DAYS",
-                      "120 DAYS",
-                      "150 DAYS",
-                      "180+ DAYS",
-                    ].map((col) => (
-                      <div key={col} className="px-4 py-3 text-center">
-                        <p className={labelCls}>{col}</p>
+                    {ageBuckets.map((bucket) => (
+                      <div key={bucket.label} className="px-4 py-3 text-center">
+                        <p className={labelCls}>{bucket.label}</p>
                       </div>
                     ))}
                   </div>
                   <div className="grid grid-cols-7 divide-x divide-[#c6c6cd]">
-                    {[
-                      "R 0.00",
-                      "R 0.00",
-                      "R 0.00",
-                      "R 0.00",
-                      "R 0.00",
-                      "R 0.00",
-                      "R 0.00",
-                    ].map((amount, i) => (
-                      <div key={i} className="px-4 py-4 text-center">
+                    {ageBuckets.map((bucket, i) => (
+                      <div key={bucket.label} className="px-4 py-4 text-center">
                         <p
                           className={`text-[13px] font-semibold ${
-                            i > 0 && amount !== "R 0.00"
+                            i > 0 && bucket.value > 0
                               ? "text-[#ba1a1a]"
                               : "text-[#0b1c30]"
                           }`}
                         >
-                          {amount}
+                          R{" "}
+                          {bucket.value.toLocaleString("en-ZA", {
+                            minimumFractionDigits: 2,
+                          })}
                         </p>
                       </div>
                     ))}
@@ -400,6 +579,7 @@ export default function ClientDetailPage() {
                 </div>
               </section>
 
+              {/* ── Back button ── */}
               <div className="flex justify-start pt-2 pb-1">
                 <button
                   onClick={() => router.push("/Finance?view=Clients")}
@@ -408,6 +588,270 @@ export default function ClientDetailPage() {
                   <ArrowLeft size={14} /> Back to Clients
                 </button>
               </div>
+              </div>
+              )}
+
+              {activeTab === "Financials" && (
+                <div className="space-y-5">
+                  {/* ── Transaction Summary ── */}
+                  <section>
+                    <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                      Transaction Summary
+                    </h2>
+                    <div className="flex divide-x divide-[#c6c6cd]">
+                      <div className="pr-12">
+                        <p className={`${labelCls} mb-1.5`}>TOTAL INVOICED</p>
+                        <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
+                          {invoicesLoading
+                            ? "—"
+                            : fmt(
+                                invoices
+                                  .filter((i) => !isCreditNote(i.tranType))
+                                  .reduce((s, i) => s + i.total, 0),
+                              )}
+                        </p>
+                      </div>
+                      <div className="px-12">
+                        <p className={`${labelCls} mb-1.5`}>TOTAL CREDITS</p>
+                        <p className="text-[30px] font-bold text-[#F59E0B] leading-none">
+                          {invoicesLoading
+                            ? "—"
+                            : fmt(
+                                invoices
+                                  .filter((i) => isCreditNote(i.tranType))
+                                  .reduce((s, i) => s + i.total, 0),
+                              )}
+                        </p>
+                      </div>
+                      <div className="pl-12">
+                        <p className={`${labelCls} mb-1.5`}>NET</p>
+                        <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
+                          {invoicesLoading
+                            ? "—"
+                            : fmt(
+                                invoices
+                                  .filter((i) => !isCreditNote(i.tranType))
+                                  .reduce((s, i) => s + i.total, 0) -
+                                  invoices
+                                    .filter((i) => isCreditNote(i.tranType))
+                                    .reduce((s, i) => s + i.total, 0),
+                              )}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* ── Filter pills ── */}
+                  <div className="flex items-center gap-2">
+                    {(
+                      [
+                        { key: "all", label: `All (${invoices.length})` },
+                        {
+                          key: "invoice",
+                          label: `Invoices (${invoices.filter((i) => !isCreditNote(i.tranType)).length})`,
+                        },
+                        {
+                          key: "credit",
+                          label: `Credits (${invoices.filter((i) => isCreditNote(i.tranType)).length})`,
+                        },
+                      ] as const
+                    ).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => setTxFilter(key)}
+                        className={`h-7 px-3.5 rounded-full text-[12px] font-medium transition-colors ${
+                          txFilter === key
+                            ? "bg-[#0b1c30] text-white"
+                            : "bg-white border border-[#c6c6cd] text-[#45464d] hover:border-[#5bb8fe] hover:text-[#006398]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Transactions table ── */}
+                  {invoicesLoading ? (
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
+                      <p className="text-sm text-[#76777d]">
+                        Loading transactions…
+                      </p>
+                    </div>
+                  ) : invoices.length === 0 ? (
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
+                      <p className="text-sm text-[#76777d]">
+                        No transactions found for this account
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
+                      {/* Header row */}
+                      <div className="grid grid-cols-[28px_1fr_110px_72px_1fr_108px_90px_90px_112px] gap-3 bg-[#f8f9ff] border-b border-[#c6c6cd] px-4 py-2.5">
+                        <div />
+                        <p className={labelCls}>Doc No</p>
+                        <p className={labelCls}>Date</p>
+                        <p className={labelCls}>Type</p>
+                        <p className={labelCls}>Order No</p>
+                        <p className={`${labelCls} text-right`}>Subtotal</p>
+                        <p className={`${labelCls} text-right`}>Discount</p>
+                        <p className={`${labelCls} text-right`}>Tax</p>
+                        <p className={`${labelCls} text-right`}>Total</p>
+                      </div>
+
+                      {/* Data rows */}
+                      {invoices
+                        .filter((inv) => {
+                          if (txFilter === "invoice")
+                            return !isCreditNote(inv.tranType);
+                          if (txFilter === "credit")
+                            return isCreditNote(inv.tranType);
+                          return true;
+                        })
+                        .map((inv, idx) => {
+                          const isExpanded = expandedDoc === inv.docNo;
+                          const isCredit = isCreditNote(inv.tranType);
+                          return (
+                            <div
+                              key={inv.docNo + idx}
+                              className="border-b border-[#c6c6cd]/50 last:border-0"
+                            >
+                              {/* Master row */}
+                              <button
+                                onClick={() => {
+                                  if (!isExpanded) fetchLineItems(inv.docNo);
+                                  setExpandedDoc(isExpanded ? null : inv.docNo);
+                                }}
+                                className="w-full grid grid-cols-[28px_1fr_110px_72px_1fr_108px_90px_90px_112px] gap-3 px-4 py-3 text-left hover:bg-[#f8f9ff] transition-colors items-center"
+                              >
+                                <span className="text-[#76777d] flex items-center">
+                                  {isExpanded ? (
+                                    <ChevronDown size={14} />
+                                  ) : (
+                                    <ChevronRight size={14} />
+                                  )}
+                                </span>
+                                <span className="text-[13px] font-medium text-[#0b1c30] truncate">
+                                  {inv.docNo}
+                                </span>
+                                <span className="text-[13px] text-[#45464d]">
+                                  {new Date(inv.date).toLocaleDateString(
+                                    "en-ZA",
+                                    {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                    },
+                                  )}
+                                </span>
+                                <span>
+                                  <span
+                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                      isCredit
+                                        ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
+                                        : "bg-[#eff4ff] text-[#006398] border-[#006398]/20"
+                                    }`}
+                                  >
+                                    {inv.tranType}
+                                  </span>
+                                </span>
+                                <span className="text-[13px] text-[#45464d] truncate">
+                                  {inv.orderNo || "—"}
+                                </span>
+                                <span className="text-[13px] text-[#45464d] text-right">
+                                  {fmt(inv.goodsValue)}
+                                </span>
+                                <span className="text-[13px] text-[#45464d] text-right">
+                                  {inv.discount > 0
+                                    ? `− ${fmt(inv.discount)}`
+                                    : "—"}
+                                </span>
+                                <span className="text-[13px] text-[#45464d] text-right">
+                                  {fmt(inv.tax)}
+                                </span>
+                                <span
+                                  className={`text-[13px] font-semibold text-right ${
+                                    isCredit
+                                      ? "text-[#b45309]"
+                                      : "text-[#0b1c30]"
+                                  }`}
+                                >
+                                  {fmt(inv.total)}
+                                </span>
+                              </button>
+
+                              {/* Expanded line items */}
+                              {isExpanded && (
+                                <div className="border-t border-[#c6c6cd]/40 bg-[#f8f9ff] px-8 py-3">
+                                  {loadingLines[inv.docNo] ? (
+                                    <p className="text-[12px] text-[#76777d] py-2">
+                                      Loading line items…
+                                    </p>
+                                  ) : (lineItems[inv.docNo] ?? []).length === 0 ? (
+                                    <p className="text-[12px] text-[#76777d] py-2">
+                                      No line items found
+                                    </p>
+                                  ) : (
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr className="border-b border-[#c6c6cd]/50">
+                                          <th className={`${labelCls} text-left pb-2`}>Stock Code</th>
+                                          <th className={`${labelCls} text-left pb-2`}>Description</th>
+                                          <th className={`${labelCls} text-right pb-2`}>Qty</th>
+                                          <th className={`${labelCls} text-right pb-2`}>Unit Price</th>
+                                          <th className={`${labelCls} text-right pb-2`}>Disc%</th>
+                                          <th className={`${labelCls} text-right pb-2`}>Line Total</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(lineItems[inv.docNo] ?? []).map((line, li) => (
+                                          <tr
+                                            key={line.mTranKey + li}
+                                            className="border-b border-[#c6c6cd]/30 last:border-0"
+                                          >
+                                            <td className="py-2 text-[12px] text-[#45464d] font-mono">
+                                              {line.stockCode}
+                                            </td>
+                                            <td className="py-2 text-[12px] text-[#0b1c30]">
+                                              {line.description}
+                                            </td>
+                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                              {line.quantity}
+                                            </td>
+                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                              {fmt(line.price)}
+                                            </td>
+                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                              {line.discPerCent > 0
+                                                ? `${line.discPerCent}%`
+                                                : "—"}
+                                            </td>
+                                            <td className="py-2 text-[12px] text-right font-medium text-[#0b1c30]">
+                                              {fmt(line.lineTotal)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* ── Back button ── */}
+                  <div className="flex justify-start pt-2 pb-1">
+                    <button
+                      onClick={() => router.push("/Finance?view=Clients")}
+                      className="h-8 px-4 rounded border border-[#c6c6cd] bg-white text-[#0b1c30] text-sm font-medium flex items-center gap-1.5 hover:bg-[#f8f9ff] transition-colors"
+                    >
+                      <ArrowLeft size={14} /> Back to Clients
+                    </button>
+                  </div>
+                </div>
+              )}
             </main>
 
             {/* ── Footer ── */}
@@ -442,6 +886,7 @@ export default function ClientDetailPage() {
     </div>
   );
 }
+
 // ── Previous widget-based implementation (preserved for reference) ────────────
 
 // import { useState, useEffect, useCallback } from "react";
