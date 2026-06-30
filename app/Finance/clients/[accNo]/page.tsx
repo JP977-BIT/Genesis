@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Phone,
@@ -13,11 +13,25 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  GripHorizontal,
+  Info,
+  CreditCard,
+  Clock,
+  RefreshCw,
+  BarChart2,
 } from "lucide-react";
 import FinanceSidebar from "@/app/Finance/components/financeSidebar";
 
 const labelCls =
   "text-[11px] font-semibold uppercase tracking-[0.05em] text-[#45464d]";
+
+const NAV_ITEMS = [
+  { label: "Details",      icon: Info       },
+  { label: "Transactions", icon: CreditCard },
+  { label: "History",      icon: Clock      },
+  { label: "Recurring",    icon: RefreshCw  },
+  { label: "Sales Info",   icon: BarChart2  },
+];
 
 interface Customer {
   accNo: string;
@@ -84,10 +98,43 @@ interface Invoice {
   body: InvoiceLine[];
 }
 
+interface Transaction {
+  sourceType: string;
+  tranType: string;
+  tranTypeName: string;
+  date: string;
+  accNo: string;
+  accName: string;
+  contra: string;
+  contraName: string;
+  contraType: string;
+  ref: string;
+  totalValue: number;
+  tax: number;
+  discount: number;
+  status: string;
+  statusName: string;
+  state: string;
+  user: string;
+  tranCode: string;
+  warehouse: string;
+  repCode: string;
+  notes: string;
+  currencyNo: number;
+  localCurrency: string;
+  currencyRate: number;
+  expDate: string;
+  arcDate: string;
+}
+
 const fmt = (n: number) =>
-  `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
+  n.toLocaleString("en-ZA", { minimumFractionDigits: 2 });
 
 const isCreditNote = (tranType: string) => /^c/i.test(tranType.trim());
+
+const isDebitType = (name: string) => /invoice|debit/i.test(name);
+const isCreditType = (name: string) => /credit|receipt|payment/i.test(name);
+const isExpandable = (name: string) => /invoice|credit/i.test(name);
 
 export default function ClientDetailPage() {
   const router = useRouter();
@@ -107,12 +154,28 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Details");
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
-  const [txFilter, setTxFilter] = useState<"all" | "invoice" | "credit">("all");
+  const [txFilter, setTxFilter] = useState("All");
   const [lineItems, setLineItems] = useState<Record<string, InvoiceLine[]>>({});
   const [loadingLines, setLoadingLines] = useState<Record<string, boolean>>({});
+
+  const [dockPosition, setDockPosition] = useState<"left" | "right" | "top" | "bottom">("left");
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [snapTarget, setSnapTarget] = useState<"left" | "right" | "top" | "bottom" | null>(null);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const snapTargetRef = useRef<"left" | "right" | "top" | "bottom" | null>(null);
+
+  const handleNavDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const panel = (e.currentTarget as HTMLElement).closest("[data-nav-panel]") as HTMLElement | null;
+    const rect = (panel ?? e.currentTarget).getBoundingClientRect();
+    dragOffsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    setDragPos({ x: e.clientX, y: e.clientY });
+    setIsDragging(true);
+  };
 
   useEffect(() => {
     if (!accNo) return;
@@ -182,7 +245,7 @@ export default function ClientDetailPage() {
   }, [accNo]);
 
   useEffect(() => {
-    if (activeTab !== "Financials" || !customer) return;
+    if (activeTab !== "Transactions" || !customer) return;
 
     const stored = localStorage.getItem("selectedCompany");
     if (!stored) return;
@@ -195,22 +258,22 @@ export default function ClientDetailPage() {
     }
 
     let isActive = true;
-    setInvoicesLoading(true);
+    setTransactionsLoading(true);
 
     (async () => {
       try {
         const res = await fetch(
-          `/api/customertransactions/invoices?companyNr=${company.companyNr}&accNo=${accNo}`,
+          `/api/transactions/debtors?companyNr=${company.companyNr}&accNo=${accNo}`,
         );
         const result = await res.json();
         if (!isActive) return;
-        if (result.success && result.data?.invoices) {
-          setInvoices(result.data.invoices);
+        if (result.success && result.data?.transactions) {
+          setTransactions(result.data.transactions);
         }
       } catch {
-        // silently fail — invoices are non-critical
+        // silently fail — transactions are non-critical
       } finally {
-        if (isActive) setInvoicesLoading(false);
+        if (isActive) setTransactionsLoading(false);
       }
     })();
 
@@ -218,6 +281,46 @@ export default function ClientDetailPage() {
       isActive = false;
     };
   }, [activeTab, accNo, customer]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMove = (e: MouseEvent) => {
+      setDragPos({ x: e.clientX, y: e.clientY });
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const SNAP = 120;
+      const sidebarWidth = isExpanded ? 192 : 56;
+      const dL = e.clientX - sidebarWidth;
+      const dR = W - e.clientX;
+      const dT = e.clientY;
+      const dB = H - e.clientY;
+      const min = Math.min(dL, dR, dT, dB);
+      let target: "left" | "right" | "top" | "bottom" | null = null;
+      if (min <= SNAP) {
+        if (min === dL) target = "left";
+        else if (min === dR) target = "right";
+        else if (min === dT) target = "top";
+        else target = "bottom";
+      }
+      snapTargetRef.current = target;
+      setSnapTarget(target);
+    };
+
+    const onUp = () => {
+      if (snapTargetRef.current) setDockPosition(snapTargetRef.current);
+      setIsDragging(false);
+      setSnapTarget(null);
+      snapTargetRef.current = null;
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isDragging, isExpanded]);
 
   const fetchLineItems = async (docNo: string) => {
     if (lineItems[docNo] || loadingLines[docNo]) return;
@@ -336,305 +439,355 @@ export default function ClientDetailPage() {
               </div>
             </header>
 
-            {/* ── Tabs ── */}
-            <nav className="bg-white border-b border-[#c6c6cd] px-6 flex items-center gap-6 shrink-0">
-              {[
-                "Details",
-                "Financials",
-                "History",
-                "Recurring",
-                "Sales Info",
-              ].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    tab === activeTab
-                      ? "border-[#006398] text-[#006398]"
-                      : "border-transparent text-[#45464d] hover:text-[#0b1c30]"
+            {/* ── Body: dockable secondary nav + scrollable content ── */}
+            <div className={`flex flex-1 overflow-hidden relative ${
+              dockPosition === "top"    ? "flex-col" :
+              dockPosition === "bottom" ? "flex-col-reverse" :
+              dockPosition === "right"  ? "flex-row-reverse" :
+              "flex-row"
+            }`}>
+              {/* ── Secondary nav panel ── */}
+              <div
+                data-nav-panel="true"
+                className={`shrink-0 transition-opacity ${isDragging ? "opacity-30 pointer-events-none" : "opacity-100"} ${
+                  dockPosition === "top" || dockPosition === "bottom"
+                    ? `bg-white border-[#c6c6cd] flex items-center px-3 py-1 gap-1 ${dockPosition === "top" ? "border-b" : "border-t"}`
+                    : `flex flex-col bg-white ${dockPosition === "right" ? "border-l" : "border-r"} border-[#c6c6cd]`
+                }`}
+              >
+                {/* Drag handle */}
+                <div
+                  onMouseDown={handleNavDragStart}
+                  className={`flex items-center justify-center cursor-grab active:cursor-grabbing text-[#b0b1b8] hover:text-[#76777d] transition-colors select-none ${
+                    dockPosition === "top" || dockPosition === "bottom"
+                      ? "px-1 mr-1"
+                      : "w-full py-2 border-b border-[#c6c6cd]/50"
                   }`}
                 >
-                  {tab}
-                </button>
-              ))}
-            </nav>
-
-            {/* ── Scrollable body ── */}
-            <main className="flex-1 overflow-y-auto p-6">
-              {activeTab === "Details" && (
-              <div className="space-y-5">
-              {/* ── Financial Summary ── */}
-              <section>
-                <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                  Financial Summary
-                </h2>
-                <div className="flex divide-x divide-[#c6c6cd]">
-                  <div className="pr-12">
-                    <p className={`${labelCls} mb-1.5`}>TOTAL OUTSTANDING</p>
-                    <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
-                      R{" "}
-                      {totalOutstanding.toLocaleString("en-ZA", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </p>
-                  </div>
-                  <div className="px-12">
-                    <p className={`${labelCls} mb-1.5`}>OVERDUE</p>
-                    <p className="text-[30px] font-bold text-[#ba1a1a] leading-none">
-                      R 0.00
-                    </p>
-                  </div>
-                  <div className="pl-12">
-                    <p className={`${labelCls} mb-1.5`}>CREDIT AVAILABLE</p>
-                    <p className="text-[30px] font-bold text-[#009668] leading-none">
-                      R{" "}
-                      {creditAvailable.toLocaleString("en-ZA", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </p>
-                  </div>
+                  <GripHorizontal size={14} />
                 </div>
-              </section>
 
-              {/* ── Three column cards ── */}
-              <div className="grid grid-cols-3 gap-4">
-                {/* ── Column 1: Contact Information ── */}
-                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                    Contact Information
-                  </h3>
-                  <div className="flex flex-col flex-1">
-                    {[
-                      {
-                        label: "Contact Person",
-                        value: customer.contact || "—",
-                        icons: ["phone"] as const,
-                      },
-                      {
-                        label: "Phone",
-                        value: customer.phone || "—",
-                        icons: ["phone"] as const,
-                      },
-                      {
-                        label: "Fax",
-                        value: customer.fax || "—",
-                        icons: ["phone"] as const,
-                      },
-                      {
-                        label: "Email",
-                        value: customer.eMail?.trim() || "—",
-                        icons: ["message", "copy"] as const,
-                      },
-                    ].map((row) => (
-                      <div
-                        key={row.label}
-                        className="flex items-center justify-between py-3 border-b border-[#c6c6cd]/40 last:border-0"
+                {dockPosition === "top" || dockPosition === "bottom" ? (
+                  // Horizontal layout
+                  <div className="flex items-center gap-0.5">
+                    {NAV_ITEMS.map(({ label, icon: Icon }) => (
+                      <button
+                        key={label}
+                        onClick={() => setActiveTab(label)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded text-[13px] font-medium transition-colors whitespace-nowrap ${
+                          label === activeTab
+                            ? "bg-[#eff4ff] text-[#006398]"
+                            : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
+                        }`}
                       >
-                        <div>
-                          <p className={labelCls}>{row.label}</p>
-                          <p className="text-[14px] text-[#0b1c30] mt-0.5">
-                            {row.value}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {row.icons.map((icon) => (
-                            <button
-                              key={icon}
-                              className="w-7 h-7 rounded border border-[#c6c6cd] bg-white flex items-center justify-center text-[#76777d] hover:border-[#5bb8fe] hover:text-[#006398] transition-colors"
-                            >
-                              {icon === "phone" && <Phone size={12} />}
-                              {icon === "message" && (
-                                <MessageSquare size={12} />
-                              )}
-                              {icon === "copy" && <Copy size={12} />}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                        <Icon size={14} className="shrink-0" />
+                        {label}
+                      </button>
                     ))}
                   </div>
-                </div>
-
-                {/* ── Column 2: Financial & Admin ── */}
-                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                    Financial & Admin
-                  </h3>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
-                    <div>
-                      <p className={`${labelCls} mb-1`}>VAT Number</p>
-                      <p className="text-[14px] text-[#0b1c30]">
-                        {customer.gstNumber || "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className={`${labelCls} mb-1`}>Credit Limit</p>
-                      <p className="text-[14px] text-[#0b1c30]">
-                        R{" "}
-                        {customer.creditLimit.toLocaleString("en-ZA", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className={`${labelCls} mb-1`}>Trade Discount</p>
-                      <p className="text-[14px] text-[#0b1c30]">—</p>
-                    </div>
-                    <div>
-                      <p className={`${labelCls} mb-1`}>Tax Status</p>
-                      <span className="inline-flex items-center text-[11px] font-semibold text-[#009668] bg-[#009668]/10 border border-[#009668]/20 px-2.5 py-0.5 rounded-full">
-                        Compliant
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
-                      CLASSIFICATION
-                    </p>
-                    <div className="grid grid-cols-3 gap-x-4">
-                      <div>
-                        <p className={`${labelCls} mb-1`}>Rep Code</p>
-                        <p className="text-[14px] text-[#0b1c30]">
-                          {customer.repCode || "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className={`${labelCls} mb-1`}>Area Code</p>
-                        <p className="text-[14px] text-[#0b1c30]">
-                          {customer.category || "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className={`${labelCls} mb-1`}>Terms</p>
-                        <p className="text-[14px] text-[#0b1c30]">30 Days</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Column 3: Internal Notes ── */}
-                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                  <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                    Internal Notes
-                  </h3>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add internal notes about this client…"
-                    className="flex-1 w-full resize-none text-[14px] text-[#0b1c30] placeholder:text-[#b0b1b8] focus:outline-none leading-relaxed min-h-[180px]"
-                  />
-                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#c6c6cd]/40">
-                    <p className="text-[11px] text-[#b0b1b8]">
-                      {notes.length > 0
-                        ? `${notes.length} characters`
-                        : "Not saved yet"}
-                    </p>
-                    <button
-                      onClick={() => alert("Notes saving coming soon!")}
-                      className="h-7 px-3 rounded bg-[#0b1c30] text-white text-[12px] font-medium hover:bg-[#131b2e] transition-colors"
-                    >
-                      Save Notes
-                    </button>
-                  </div>
-                </div>
+                ) : (
+                  // Vertical layout — full height sidebar
+                  <nav className="flex flex-col w-52">
+                    {NAV_ITEMS.map(({ label, icon: Icon }) => (
+                      <button
+                        key={label}
+                        onClick={() => setActiveTab(label)}
+                        className={`w-full text-left px-4 py-3 text-[13px] font-medium transition-colors border-b border-[#c6c6cd]/50 last:border-0 flex items-center gap-2.5 ${
+                          label === activeTab
+                            ? "bg-[#eff4ff] text-[#006398]"
+                            : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
+                        }`}
+                      >
+                        <Icon size={14} className="shrink-0" />
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                )}
               </div>
 
-              {/* ── Age Analysis ── */}
-              <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-[15px] font-semibold text-[#0b1c30]">
-                    Age Analysis
-                  </h2>
-                  <p className="text-[12px] text-[#76777d]">
-                    Account: {customer.accNo}
-                  </p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
-                  <div className="grid grid-cols-7 divide-x divide-[#c6c6cd] border-b border-[#c6c6cd] bg-[#f8f9ff]">
-                    {ageBuckets.map((bucket) => (
-                      <div key={bucket.label} className="px-4 py-3 text-center">
-                        <p className={labelCls}>{bucket.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-7 divide-x divide-[#c6c6cd]">
-                    {ageBuckets.map((bucket, i) => (
-                      <div key={bucket.label} className="px-4 py-4 text-center">
-                        <p
-                          className={`text-[13px] font-semibold ${
-                            i > 0 && bucket.value > 0
-                              ? "text-[#ba1a1a]"
-                              : "text-[#0b1c30]"
-                          }`}
-                        >
-                          R{" "}
-                          {bucket.value.toLocaleString("en-ZA", {
+              {/* ── Scrollable content ── */}
+              <main className={`flex-1 overflow-y-auto p-6 ${dockPosition === "left" ? "pl-2" : "pl-6"}`}>
+              {activeTab === "Details" && (
+                <div className="space-y-5">
+                  {/* ── Financial Summary ── */}
+                  <section>
+                    <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                      Financial Summary
+                    </h2>
+                    <div className="flex divide-x divide-[#c6c6cd]">
+                      <div className="pr-12">
+                        <p className={`${labelCls} mb-1.5`}>
+                          TOTAL OUTSTANDING
+                        </p>
+                        <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
+                          {totalOutstanding.toLocaleString("en-ZA", {
                             minimumFractionDigits: 2,
                           })}
                         </p>
                       </div>
-                    ))}
+                      <div className="px-12">
+                        <p className={`${labelCls} mb-1.5`}>OVERDUE</p>
+                        <p className="text-[30px] font-bold text-[#ba1a1a] leading-none">
+                          0.00
+                        </p>
+                      </div>
+                      <div className="pl-12">
+                        <p className={`${labelCls} mb-1.5`}>CREDIT AVAILABLE</p>
+                        <p className="text-[30px] font-bold text-[#009668] leading-none">
+                          {creditAvailable.toLocaleString("en-ZA", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* ── Three column cards ── */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* ── Column 1: Contact Information ── */}
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
+                        Contact Information
+                      </h3>
+                      <div className="flex flex-col flex-1">
+                        {[
+                          {
+                            label: "Contact Person",
+                            value: customer.contact || "—",
+                            icons: ["phone"] as const,
+                          },
+                          {
+                            label: "Phone",
+                            value: customer.phone || "—",
+                            icons: ["phone"] as const,
+                          },
+                          {
+                            label: "Fax",
+                            value: customer.fax || "—",
+                            icons: ["phone"] as const,
+                          },
+                          {
+                            label: "Email",
+                            value: customer.eMail?.trim() || "—",
+                            icons: ["message", "copy"] as const,
+                          },
+                        ].map((row) => (
+                          <div
+                            key={row.label}
+                            className="flex items-center justify-between py-3 border-b border-[#c6c6cd]/40 last:border-0"
+                          >
+                            <div>
+                              <p className={labelCls}>{row.label}</p>
+                              <p className="text-[14px] text-[#0b1c30] mt-0.5">
+                                {row.value}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {row.icons.map((icon) => (
+                                <button
+                                  key={icon}
+                                  className="w-7 h-7 rounded border border-[#c6c6cd] bg-white flex items-center justify-center text-[#76777d] hover:border-[#5bb8fe] hover:text-[#006398] transition-colors"
+                                >
+                                  {icon === "phone" && <Phone size={12} />}
+                                  {icon === "message" && (
+                                    <MessageSquare size={12} />
+                                  )}
+                                  {icon === "copy" && <Copy size={12} />}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── Column 2: Financial & Admin ── */}
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                        Financial & Admin
+                      </h3>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+                        <div>
+                          <p className={`${labelCls} mb-1`}>VAT Number</p>
+                          <p className="text-[14px] text-[#0b1c30]">
+                            {customer.gstNumber || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Credit Limit</p>
+                          <p className="text-[14px] text-[#0b1c30]">
+                            {customer.creditLimit.toLocaleString("en-ZA", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Trade Discount</p>
+                          <p className="text-[14px] text-[#0b1c30]">—</p>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Tax Status</p>
+                          <span className="inline-flex items-center text-[11px] font-semibold text-[#009668] bg-[#009668]/10 border border-[#009668]/20 px-2.5 py-0.5 rounded-full">
+                            Compliant
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
+                          CLASSIFICATION
+                        </p>
+                        <div className="grid grid-cols-3 gap-x-4">
+                          <div>
+                            <p className={`${labelCls} mb-1`}>Rep Code</p>
+                            <p className="text-[14px] text-[#0b1c30]">
+                              {customer.repCode || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`${labelCls} mb-1`}>Area Code</p>
+                            <p className="text-[14px] text-[#0b1c30]">
+                              {customer.category || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`${labelCls} mb-1`}>Terms</p>
+                            <p className="text-[14px] text-[#0b1c30]">
+                              30 Days
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Column 3: Internal Notes ── */}
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
+                        Internal Notes
+                      </h3>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add internal notes about this client…"
+                        className="flex-1 w-full resize-none text-[14px] text-[#0b1c30] placeholder:text-[#b0b1b8] focus:outline-none leading-relaxed min-h-[180px]"
+                      />
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#c6c6cd]/40">
+                        <p className="text-[11px] text-[#b0b1b8]">
+                          {notes.length > 0
+                            ? `${notes.length} characters`
+                            : "Not saved yet"}
+                        </p>
+                        <button
+                          onClick={() => alert("Notes saving coming soon!")}
+                          className="h-7 px-3 rounded bg-[#0b1c30] text-white text-[12px] font-medium hover:bg-[#131b2e] transition-colors"
+                        >
+                          Save Notes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Age Analysis ── */}
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Age Analysis
+                      </h2>
+                      <p className="text-[12px] text-[#76777d]">
+                        Account: {customer.accNo}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
+                      <div className="grid grid-cols-7 divide-x divide-[#c6c6cd] border-b border-[#c6c6cd] bg-[#f8f9ff]">
+                        {ageBuckets.map((bucket) => (
+                          <div
+                            key={bucket.label}
+                            className="px-4 py-3 text-center"
+                          >
+                            <p className={labelCls}>{bucket.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 divide-x divide-[#c6c6cd]">
+                        {ageBuckets.map((bucket, i) => (
+                          <div
+                            key={bucket.label}
+                            className="px-4 py-4 text-center"
+                          >
+                            <p
+                              className={`text-[13px] font-semibold ${
+                                i > 0 && bucket.value > 0
+                                  ? "text-[#ba1a1a]"
+                                  : "text-[#0b1c30]"
+                              }`}
+                            >
+                              {bucket.value.toLocaleString("en-ZA", {
+                                minimumFractionDigits: 2,
+                              })}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* ── Back button ── */}
+                  <div className="flex justify-start pt-2 pb-1">
+                    <button
+                      onClick={() => router.push("/Finance?view=Clients")}
+                      className="h-8 px-4 rounded border border-[#c6c6cd] bg-white text-[#0b1c30] text-sm font-medium flex items-center gap-1.5 hover:bg-[#f8f9ff] transition-colors"
+                    >
+                      <ArrowLeft size={14} /> Back to Clients
+                    </button>
                   </div>
                 </div>
-              </section>
-
-              {/* ── Back button ── */}
-              <div className="flex justify-start pt-2 pb-1">
-                <button
-                  onClick={() => router.push("/Finance?view=Clients")}
-                  className="h-8 px-4 rounded border border-[#c6c6cd] bg-white text-[#0b1c30] text-sm font-medium flex items-center gap-1.5 hover:bg-[#f8f9ff] transition-colors"
-                >
-                  <ArrowLeft size={14} /> Back to Clients
-                </button>
-              </div>
-              </div>
               )}
 
-              {activeTab === "Financials" && (
+              {activeTab === "Transactions" && (
                 <div className="space-y-5">
                   {/* ── Transaction Summary ── */}
                   <section>
                     <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                      Transaction Summary
+                      Transactions
                     </h2>
                     <div className="flex divide-x divide-[#c6c6cd]">
                       <div className="pr-12">
                         <p className={`${labelCls} mb-1.5`}>TOTAL INVOICED</p>
                         <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
-                          {invoicesLoading
+                          {transactionsLoading
                             ? "—"
                             : fmt(
-                                invoices
-                                  .filter((i) => !isCreditNote(i.tranType))
-                                  .reduce((s, i) => s + i.total, 0),
+                                transactions
+                                  .filter((t) => isDebitType(t.tranTypeName))
+                                  .reduce((s, t) => s + t.totalValue, 0),
                               )}
                         </p>
                       </div>
                       <div className="px-12">
-                        <p className={`${labelCls} mb-1.5`}>TOTAL CREDITS</p>
-                        <p className="text-[30px] font-bold text-[#F59E0B] leading-none">
-                          {invoicesLoading
+                        <p className={`${labelCls} mb-1.5`}>TOTAL RECEIVED</p>
+                        <p className="text-[30px] font-bold text-[#009668] leading-none">
+                          {transactionsLoading
                             ? "—"
                             : fmt(
-                                invoices
-                                  .filter((i) => isCreditNote(i.tranType))
-                                  .reduce((s, i) => s + i.total, 0),
+                                transactions
+                                  .filter((t) => isCreditType(t.tranTypeName))
+                                  .reduce((s, t) => s + t.totalValue, 0),
                               )}
                         </p>
                       </div>
                       <div className="pl-12">
                         <p className={`${labelCls} mb-1.5`}>NET</p>
                         <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
-                          {invoicesLoading
+                          {transactionsLoading
                             ? "—"
                             : fmt(
-                                invoices
-                                  .filter((i) => !isCreditNote(i.tranType))
-                                  .reduce((s, i) => s + i.total, 0) -
-                                  invoices
-                                    .filter((i) => isCreditNote(i.tranType))
-                                    .reduce((s, i) => s + i.total, 0),
+                                transactions
+                                  .filter((t) => isDebitType(t.tranTypeName))
+                                  .reduce((s, t) => s + t.totalValue, 0) -
+                                  transactions
+                                    .filter((t) => isCreditType(t.tranTypeName))
+                                    .reduce((s, t) => s + t.totalValue, 0),
                               )}
                         </p>
                       </div>
@@ -642,42 +795,37 @@ export default function ClientDetailPage() {
                   </section>
 
                   {/* ── Filter pills ── */}
-                  <div className="flex items-center gap-2">
-                    {(
-                      [
-                        { key: "all", label: `All (${invoices.length})` },
-                        {
-                          key: "invoice",
-                          label: `Invoices (${invoices.filter((i) => !isCreditNote(i.tranType)).length})`,
-                        },
-                        {
-                          key: "credit",
-                          label: `Credits (${invoices.filter((i) => isCreditNote(i.tranType)).length})`,
-                        },
-                      ] as const
-                    ).map(({ key, label }) => (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      "All",
+                      ...Array.from(
+                        new Set(transactions.map((t) => t.tranTypeName)),
+                      ).sort(),
+                    ].map((type) => (
                       <button
-                        key={key}
-                        onClick={() => setTxFilter(key)}
+                        key={type}
+                        onClick={() => setTxFilter(type)}
                         className={`h-7 px-3.5 rounded-full text-[12px] font-medium transition-colors ${
-                          txFilter === key
+                          txFilter === type
                             ? "bg-[#0b1c30] text-white"
                             : "bg-white border border-[#c6c6cd] text-[#45464d] hover:border-[#5bb8fe] hover:text-[#006398]"
                         }`}
                       >
-                        {label}
+                        {type === "All"
+                          ? `All (${transactions.length})`
+                          : `${type} (${transactions.filter((t) => t.tranTypeName === type).length})`}
                       </button>
                     ))}
                   </div>
 
                   {/* ── Transactions table ── */}
-                  {invoicesLoading ? (
+                  {transactionsLoading ? (
                     <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
                       <p className="text-sm text-[#76777d]">
                         Loading transactions…
                       </p>
                     </div>
-                  ) : invoices.length === 0 ? (
+                  ) : transactions.length === 0 ? (
                     <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
                       <p className="text-sm text-[#76777d]">
                         No transactions found for this account
@@ -686,55 +834,54 @@ export default function ClientDetailPage() {
                   ) : (
                     <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
                       {/* Header row */}
-                      <div className="grid grid-cols-[28px_1fr_110px_72px_1fr_108px_90px_90px_112px] gap-3 bg-[#f8f9ff] border-b border-[#c6c6cd] px-4 py-2.5">
+                      <div className="grid grid-cols-[28px_110px_185px_1fr_1fr_130px_100px] gap-3 bg-[#f8f9ff] border-b border-[#c6c6cd] px-4 py-2.5">
                         <div />
-                        <p className={labelCls}>Doc No</p>
                         <p className={labelCls}>Date</p>
                         <p className={labelCls}>Type</p>
-                        <p className={labelCls}>Order No</p>
-                        <p className={`${labelCls} text-right`}>Subtotal</p>
-                        <p className={`${labelCls} text-right`}>Discount</p>
-                        <p className={`${labelCls} text-right`}>Tax</p>
-                        <p className={`${labelCls} text-right`}>Total</p>
+                        <p className={labelCls}>Ref</p>
+                        <p className={labelCls}>Description</p>
+                        <p className={`${labelCls} text-right`}>Amount</p>
+                        <p className={labelCls}>Status</p>
                       </div>
 
                       {/* Data rows */}
-                      {invoices
-                        .filter((inv) => {
-                          if (txFilter === "invoice")
-                            return !isCreditNote(inv.tranType);
-                          if (txFilter === "credit")
-                            return isCreditNote(inv.tranType);
-                          return true;
-                        })
-                        .map((inv, idx) => {
-                          const isExpanded = expandedDoc === inv.docNo;
-                          const isCredit = isCreditNote(inv.tranType);
+                      {transactions
+                        .filter(
+                          (t) =>
+                            txFilter === "All" || t.tranTypeName === txFilter,
+                        )
+                        .map((tx, idx) => {
+                          const rowKey = tx.ref + idx;
+                          const isExpanded = expandedDoc === rowKey;
+                          const canExpand = isExpandable(tx.tranTypeName);
+                          const isCredit = isCreditType(tx.tranTypeName);
+                          const isDebit = isDebitType(tx.tranTypeName);
                           return (
                             <div
-                              key={inv.docNo + idx}
+                              key={rowKey}
                               className="border-b border-[#c6c6cd]/50 last:border-0"
                             >
                               {/* Master row */}
                               <button
                                 onClick={() => {
-                                  if (!isExpanded) fetchLineItems(inv.docNo);
-                                  setExpandedDoc(isExpanded ? null : inv.docNo);
+                                  if (canExpand) {
+                                    if (!isExpanded) fetchLineItems(tx.ref);
+                                    setExpandedDoc(isExpanded ? null : rowKey);
+                                  }
                                 }}
-                                className="w-full grid grid-cols-[28px_1fr_110px_72px_1fr_108px_90px_90px_112px] gap-3 px-4 py-3 text-left hover:bg-[#f8f9ff] transition-colors items-center"
+                                className={`w-full grid grid-cols-[28px_110px_185px_1fr_1fr_130px_100px] gap-3 px-4 py-3 text-left transition-colors items-center ${canExpand ? "hover:bg-[#f8f9ff] cursor-pointer" : "cursor-default"}`}
                               >
                                 <span className="text-[#76777d] flex items-center">
-                                  {isExpanded ? (
-                                    <ChevronDown size={14} />
-                                  ) : (
-                                    <ChevronRight size={14} />
-                                  )}
-                                </span>
-                                <span className="text-[13px] font-medium text-[#0b1c30] truncate">
-                                  {inv.docNo}
+                                  {canExpand ? (
+                                    isExpanded ? (
+                                      <ChevronDown size={14} />
+                                    ) : (
+                                      <ChevronRight size={14} />
+                                    )
+                                  ) : null}
                                 </span>
                                 <span className="text-[13px] text-[#45464d]">
-                                  {new Date(inv.date).toLocaleDateString(
+                                  {new Date(tx.date).toLocaleDateString(
                                     "en-ZA",
                                     {
                                       day: "2-digit",
@@ -745,48 +892,66 @@ export default function ClientDetailPage() {
                                 </span>
                                 <span>
                                   <span
-                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                                      isCredit
-                                        ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
-                                        : "bg-[#eff4ff] text-[#006398] border-[#006398]/20"
+                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                                      isDebit
+                                        ? "bg-[#eff4ff] text-[#006398] border-[#006398]/20"
+                                        : isCredit
+                                          ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
+                                          : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
                                     }`}
                                   >
-                                    {inv.tranType}
+                                    {tx.tranTypeName}
                                   </span>
                                 </span>
+                                <span className="text-[13px] font-medium text-[#0b1c30] truncate">
+                                  {tx.ref || "—"}
+                                </span>
                                 <span className="text-[13px] text-[#45464d] truncate">
-                                  {inv.orderNo || "—"}
-                                </span>
-                                <span className="text-[13px] text-[#45464d] text-right">
-                                  {fmt(inv.goodsValue)}
-                                </span>
-                                <span className="text-[13px] text-[#45464d] text-right">
-                                  {inv.discount > 0
-                                    ? `− ${fmt(inv.discount)}`
-                                    : "—"}
-                                </span>
-                                <span className="text-[13px] text-[#45464d] text-right">
-                                  {fmt(inv.tax)}
+                                  {tx.contraName || tx.notes || "—"}
                                 </span>
                                 <span
                                   className={`text-[13px] font-semibold text-right ${
                                     isCredit
-                                      ? "text-[#b45309]"
+                                      ? "text-[#009668]"
                                       : "text-[#0b1c30]"
                                   }`}
                                 >
-                                  {fmt(inv.total)}
+                                  {isCredit ? "− " : ""}
+                                  {fmt(tx.totalValue)}
+                                </span>
+                                <span>
+                                  {tx.statusName ? (
+                                    <span
+                                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                        /paid|closed|settled/i.test(
+                                          tx.statusName,
+                                        )
+                                          ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
+                                          : /open|outstanding/i.test(
+                                                tx.statusName,
+                                              )
+                                            ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
+                                            : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
+                                      }`}
+                                    >
+                                      {tx.statusName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[13px] text-[#b0b1b8]">
+                                      —
+                                    </span>
+                                  )}
                                 </span>
                               </button>
 
-                              {/* Expanded line items */}
-                              {isExpanded && (
+                              {/* Expanded line items (invoices & credit notes only) */}
+                              {isExpanded && canExpand && (
                                 <div className="border-t border-[#c6c6cd]/40 bg-[#f8f9ff] px-8 py-3">
-                                  {loadingLines[inv.docNo] ? (
+                                  {loadingLines[tx.ref] ? (
                                     <p className="text-[12px] text-[#76777d] py-2">
                                       Loading line items…
                                     </p>
-                                  ) : (lineItems[inv.docNo] ?? []).length === 0 ? (
+                                  ) : (lineItems[tx.ref] ?? []).length === 0 ? (
                                     <p className="text-[12px] text-[#76777d] py-2">
                                       No line items found
                                     </p>
@@ -794,42 +959,68 @@ export default function ClientDetailPage() {
                                     <table className="w-full">
                                       <thead>
                                         <tr className="border-b border-[#c6c6cd]/50">
-                                          <th className={`${labelCls} text-left pb-2`}>Stock Code</th>
-                                          <th className={`${labelCls} text-left pb-2`}>Description</th>
-                                          <th className={`${labelCls} text-right pb-2`}>Qty</th>
-                                          <th className={`${labelCls} text-right pb-2`}>Unit Price</th>
-                                          <th className={`${labelCls} text-right pb-2`}>Disc%</th>
-                                          <th className={`${labelCls} text-right pb-2`}>Line Total</th>
+                                          <th
+                                            className={`${labelCls} text-left pb-2`}
+                                          >
+                                            Stock Code
+                                          </th>
+                                          <th
+                                            className={`${labelCls} text-left pb-2`}
+                                          >
+                                            Description
+                                          </th>
+                                          <th
+                                            className={`${labelCls} text-right pb-2`}
+                                          >
+                                            Qty
+                                          </th>
+                                          <th
+                                            className={`${labelCls} text-right pb-2`}
+                                          >
+                                            Unit Price
+                                          </th>
+                                          <th
+                                            className={`${labelCls} text-right pb-2`}
+                                          >
+                                            Disc%
+                                          </th>
+                                          <th
+                                            className={`${labelCls} text-right pb-2`}
+                                          >
+                                            Line Total
+                                          </th>
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {(lineItems[inv.docNo] ?? []).map((line, li) => (
-                                          <tr
-                                            key={line.mTranKey + li}
-                                            className="border-b border-[#c6c6cd]/30 last:border-0"
-                                          >
-                                            <td className="py-2 text-[12px] text-[#45464d] font-mono">
-                                              {line.stockCode}
-                                            </td>
-                                            <td className="py-2 text-[12px] text-[#0b1c30]">
-                                              {line.description}
-                                            </td>
-                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
-                                              {line.quantity}
-                                            </td>
-                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
-                                              {fmt(line.price)}
-                                            </td>
-                                            <td className="py-2 text-[12px] text-right text-[#45464d]">
-                                              {line.discPerCent > 0
-                                                ? `${line.discPerCent}%`
-                                                : "—"}
-                                            </td>
-                                            <td className="py-2 text-[12px] text-right font-medium text-[#0b1c30]">
-                                              {fmt(line.lineTotal)}
-                                            </td>
-                                          </tr>
-                                        ))}
+                                        {(lineItems[tx.ref] ?? []).map(
+                                          (line, li) => (
+                                            <tr
+                                              key={line.mTranKey + li}
+                                              className="border-b border-[#c6c6cd]/30 last:border-0"
+                                            >
+                                              <td className="py-2 text-[12px] text-[#45464d] font-mono">
+                                                {line.stockCode}
+                                              </td>
+                                              <td className="py-2 text-[12px] text-[#0b1c30]">
+                                                {line.description}
+                                              </td>
+                                              <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                                {line.quantity}
+                                              </td>
+                                              <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                                {fmt(line.price)}
+                                              </td>
+                                              <td className="py-2 text-[12px] text-right text-[#45464d]">
+                                                {line.discPerCent > 0
+                                                  ? `${line.discPerCent}%`
+                                                  : "—"}
+                                              </td>
+                                              <td className="py-2 text-[12px] text-right font-medium text-[#0b1c30]">
+                                                {fmt(line.lineTotal)}
+                                              </td>
+                                            </tr>
+                                          ),
+                                        )}
                                       </tbody>
                                     </table>
                                   )}
@@ -852,7 +1043,60 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
               )}
-            </main>
+              </main>
+
+              {/* ── Drag overlay: drop zones + floating clone ── */}
+              {isDragging && (
+                <>
+                  {(["left", "right", "top", "bottom"] as const).map((zone) => (
+                    <div
+                      key={zone}
+                      style={zone === "left" ? { left: isExpanded ? 192 : 56 } : undefined}
+                      className={`fixed z-40 pointer-events-none flex items-center justify-center transition-colors ${
+                        zone === "left"   ? "top-0 h-full w-24" :
+                        zone === "right"  ? "right-0 top-0 h-full w-24" :
+                        zone === "top"    ? "top-0 left-0 w-full h-24" :
+                                            "bottom-0 left-0 w-full h-24"
+                      } ${snapTarget === zone ? "bg-[#006398]/50" : "bg-[#006398]/25"}`}
+                    >
+                      <div className={`rounded-full transition-all ${
+                        snapTarget === zone ? "bg-[#006398] scale-125" : "bg-[#006398]/70"
+                      } ${zone === "left" || zone === "right" ? "w-1.5 h-16" : "w-16 h-1.5"}`} />
+                    </div>
+                  ))}
+
+                  {/* Floating nav clone that follows the cursor */}
+                  <div
+                    style={{
+                      position: "fixed",
+                      left: dragPos.x - dragOffsetRef.current.x,
+                      top: dragPos.y - dragOffsetRef.current.y,
+                      zIndex: 50,
+                      pointerEvents: "none",
+                    }}
+                    className="opacity-90 select-none"
+                  >
+                    <nav className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_8px_24px_rgba(15,23,42,0.15)] overflow-hidden w-52">
+                      <div className="px-4 py-2 border-b border-[#c6c6cd]/50 flex items-center gap-2 bg-[#f8f9ff]">
+                        <GripHorizontal size={12} className="text-[#76777d]" />
+                        <span className="text-[11px] font-semibold text-[#76777d] uppercase tracking-wide">Navigation</span>
+                      </div>
+                      {NAV_ITEMS.map(({ label, icon: Icon }) => (
+                        <button
+                          key={label}
+                          className={`w-full text-left px-4 py-2.5 text-[13px] font-medium border-b border-[#c6c6cd]/50 last:border-0 flex items-center gap-2.5 ${
+                            label === activeTab ? "bg-[#eff4ff] text-[#006398]" : "text-[#45464d]"
+                          }`}
+                        >
+                          <Icon size={14} className="shrink-0" />
+                          {label}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* ── Footer ── */}
             <footer className="bg-white border-t border-[#c6c6cd] px-6 py-3 flex items-center justify-between shrink-0">
