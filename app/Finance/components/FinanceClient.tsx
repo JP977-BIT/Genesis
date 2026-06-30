@@ -12,6 +12,8 @@ import {
   Search,
 } from "lucide-react";
 import FinanceSidebar from "./financeSidebar";
+import SalesDashboard from "./SalesDashboard";
+import CreateClientModal from "./CreateClientModal";
 import { consumeCustomerPrefetch } from "@/src/lib/prefetch/customers";
 
 interface Customer {
@@ -88,8 +90,11 @@ export default function FinanceClient() {
   const [isExpanded, setIsExpanded] = useState(
     () => typeof window !== "undefined" && localStorage.getItem("sidebar-pinned") === "true"
   );
+  const [companyNr, setCompanyNr] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [fetchKey, setFetchKey] = useState(0);
   const router = useRouter();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,13 +164,14 @@ export default function FinanceClient() {
     const stored = localStorage.getItem("selectedCompany");
     if (!stored) return;
 
-    let company;
+    let company: { companyNr: string };
     try {
       company = JSON.parse(stored);
     } catch (err) {
       console.error("Failed to parse company from localStorage:", err);
       return;
     }
+    setCompanyNr(company.companyNr);
 
     const fetchCustomers = async () => {
       setLoadingCustomers(true);
@@ -198,7 +204,7 @@ export default function FinanceClient() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [fetchKey]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
@@ -248,18 +254,27 @@ export default function FinanceClient() {
                     </p>
                   </div>
 
-                  <div className="relative w-72">
-                    <Search
-                      size={15}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search clients..."
-                      className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1B3D35]/20 focus:border-[#1B3D35] transition"
-                    />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCreate(true)}
+                      className="h-7 px-3 rounded-md bg-[#1B3D35] text-white text-[12px] font-medium hover:bg-[#16332c] transition shrink-0"
+                    >
+                      + New Client
+                    </button>
+
+                    <div className="relative w-72">
+                      <Search
+                        size={15}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search clients..."
+                        className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1B3D35]/20 focus:border-[#1B3D35] transition"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -425,7 +440,11 @@ export default function FinanceClient() {
               </div>
             )}
 
-            {activeItem !== "Clients" && (
+            {activeItem === "Dashboard" && (
+              <SalesDashboard companyNr={companyNr} />
+            )}
+
+            {activeItem !== "Clients" && activeItem !== "Dashboard" && (
               <div className="bg-white rounded-md shadow-sm px-5 py-3">
                 <p className="text-sm text-gray-400">Finance — {activeItem}</p>
               </div>
@@ -433,6 +452,13 @@ export default function FinanceClient() {
           </main>
         </div>
       </div>
+
+      <CreateClientModal
+        isOpen={showCreate}
+        companyNr={companyNr}
+        onClose={() => setShowCreate(false)}
+        onCreated={() => setFetchKey((k) => k + 1)}
+      />
     </div>
   );
 }

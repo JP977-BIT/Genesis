@@ -115,7 +115,10 @@ const FinanceSidebar = memo(function FinanceSidebar({
           return (
             <button
               key={label}
-              onClick={() => setActiveItem(label)}
+              onClick={() => {
+                if (label === "Dashboard") router.push("/Finance");
+                setActiveItem(label);
+              }}
               className="w-full flex items-center px-4 py-2 text-sm whitespace-nowrap transition-colors"
               style={{
                 backgroundColor: isActive ? SIDEBAR_ACTIVE : "transparent",
