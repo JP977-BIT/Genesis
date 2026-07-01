@@ -1,8 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import { GripHorizontal, GripVertical } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export interface NavItem {
   id: string;
@@ -11,7 +26,8 @@ export interface NavItem {
 }
 
 interface SectionNavProps {
-  items: readonly NavItem[];
+  orderedItems: NavItem[];
+  onReorder: (newItems: NavItem[]) => void;
   activeSection: string | null;
   onNav: (id: string) => void;
   dockPosition: "left" | "right" | "top" | "bottom";
@@ -19,26 +35,80 @@ interface SectionNavProps {
   onDragStart: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-const ORDER_KEY = "genesis-client-nav-order";
+function SortableNavItem({
+  item,
+  isActive,
+  isHorizontal,
+  onNav,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  isHorizontal: boolean;
+  onNav: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
 
-function loadOrder(source: readonly NavItem[]): NavItem[] {
-  try {
-    const saved = localStorage.getItem(ORDER_KEY);
-    if (saved) {
-      const ids = JSON.parse(saved) as string[];
-      const sorted = ids
-        .map((id) => source.find((item) => item.id === id))
-        .filter((item): item is NavItem => item !== undefined);
-      // Append any items added since the order was last saved.
-      const extra = source.filter((item) => !ids.includes(item.id));
-      return [...sorted, ...extra];
-    }
-  } catch {}
-  return [...source];
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  const { icon: Icon, label, id } = item;
+
+  if (isHorizontal) {
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} className="relative">
+        {/* Whole button is the drag handle in horizontal mode */}
+        <button
+          onClick={() => onNav(id)}
+          {...listeners}
+          className={`flex items-center gap-2 px-3 py-2 rounded text-[13px] font-medium transition-colors whitespace-nowrap cursor-grab active:cursor-grabbing touch-none ${
+            isActive
+              ? "bg-[#eff4ff] text-[#006398]"
+              : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
+          }`}
+        >
+          <Icon size={14} className="shrink-0" />
+          {label}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className="border-b border-[#c6c6cd]/50 last:border-b-0"
+    >
+      <button
+        onClick={() => onNav(id)}
+        className={`w-full text-left px-4 py-3 text-[13px] font-medium transition-colors flex items-center gap-2.5 ${
+          isActive
+            ? "bg-[#eff4ff] text-[#006398]"
+            : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
+        }`}
+      >
+        {/* Grip icon is the drag handle in vertical mode */}
+        <span
+          {...listeners}
+          className="shrink-0 cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical size={12} className="text-[#c6c6cd]" />
+        </span>
+        <Icon size={14} className="shrink-0" />
+        {label}
+      </button>
+    </div>
+  );
 }
 
 export function SectionNav({
-  items,
+  orderedItems,
+  onReorder,
   activeSection,
   onNav,
   dockPosition,
@@ -46,52 +116,18 @@ export function SectionNav({
   onDragStart,
 }: SectionNavProps) {
   const isHorizontal = dockPosition === "top" || dockPosition === "bottom";
+  const ids = orderedItems.map((i) => i.id);
 
-  const [orderedItems, setOrderedItems] = useState<NavItem[]>(() =>
-    loadOrder(items),
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
-  // Both drag source and drop target are plain state so the visual feedback
-  // (opacity, insertion line) re-renders reactively.
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDragIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dropIndex !== index) setDropIndex(index);
-  };
-
-  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    if (dragIndex === null || dragIndex === targetIndex) {
-      setDragIndex(null);
-      setDropIndex(null);
-      return;
-    }
-
-    setOrderedItems((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIndex, 1);
-      next.splice(targetIndex, 0, moved);
-      try {
-        localStorage.setItem(ORDER_KEY, JSON.stringify(next.map((i) => i.id)));
-      } catch {}
-      return next;
-    });
-
-    setDragIndex(null);
-    setDropIndex(null);
-  };
-
-  const handleDragEnd = () => {
-    setDragIndex(null);
-    setDropIndex(null);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = orderedItems.findIndex((i) => i.id === active.id);
+    const to = orderedItems.findIndex((i) => i.id === over.id);
+    onReorder(arrayMove(orderedItems, from, to));
   };
 
   return (
@@ -109,7 +145,7 @@ export function SectionNav({
             } border-[#c6c6cd]`
       }`}
     >
-      {/* Dock drag handle — moves the whole panel, not individual items */}
+      {/* Dock drag handle — moves the whole nav panel, not individual items */}
       <div
         onMouseDown={onDragStart}
         className={`flex items-center justify-center cursor-grab active:cursor-grabbing text-[#b0b1b8] hover:text-[#76777d] transition-colors select-none ${
@@ -121,84 +157,46 @@ export function SectionNav({
         <GripHorizontal size={14} />
       </div>
 
-      {isHorizontal ? (
-        // ── Horizontal layout (top / bottom dock) ──────────────────────────
-        <div className="flex items-center gap-0.5">
-          {orderedItems.map(({ id, label, icon: Icon }, index) => (
-            <div
-              key={id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-              className="relative"
-              style={{
-                opacity: dragIndex === index ? 0.35 : 1,
-                // Left insertion line for horizontal reordering.
-                borderLeft:
-                  dropIndex === index && dragIndex !== index
-                    ? "2px solid #006398"
-                    : "2px solid transparent",
-              }}
-            >
-              <button
-                onClick={() => onNav(id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded text-[13px] font-medium transition-colors whitespace-nowrap cursor-grab active:cursor-grabbing ${
-                  activeSection === id
-                    ? "bg-[#eff4ff] text-[#006398]"
-                    : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
-                }`}
-              >
-                <Icon size={14} className="shrink-0" />
-                {label}
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        // ── Vertical layout (left / right dock) ────────────────────────────
-        <nav className="flex flex-col w-52">
-          {orderedItems.map(({ id, label, icon: Icon }, index) => (
-            <div
-              key={id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-              // border-b acts as the item separator; border-t is the drop
-              // insertion indicator and stays transparent unless this item is
-              // the active drop target.
-              className="border-b border-[#c6c6cd]/50 last:border-b-0"
-              style={{
-                opacity: dragIndex === index ? 0.35 : 1,
-                borderTop:
-                  dropIndex === index && dragIndex !== index
-                    ? "2px solid #006398"
-                    : "2px solid transparent",
-              }}
-            >
-              <button
-                onClick={() => onNav(id)}
-                className={`w-full text-left px-4 py-3 text-[13px] font-medium transition-colors flex items-center gap-2.5 ${
-                  activeSection === id
-                    ? "bg-[#eff4ff] text-[#006398]"
-                    : "text-[#45464d] hover:bg-[#f8f9ff] hover:text-[#0b1c30]"
-                }`}
-              >
-                {/* Per-item reorder handle */}
-                <GripVertical
-                  size={12}
-                  className="shrink-0 text-[#c6c6cd] cursor-grab active:cursor-grabbing"
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={ids}
+          strategy={
+            isHorizontal
+              ? horizontalListSortingStrategy
+              : verticalListSortingStrategy
+          }
+        >
+          {isHorizontal ? (
+            <div className="flex items-center gap-0.5">
+              {orderedItems.map((item) => (
+                <SortableNavItem
+                  key={item.id}
+                  item={item}
+                  isActive={activeSection === item.id}
+                  isHorizontal
+                  onNav={onNav}
                 />
-                <Icon size={14} className="shrink-0" />
-                {label}
-              </button>
+              ))}
             </div>
-          ))}
-        </nav>
-      )}
+          ) : (
+            <nav className="flex flex-col w-52">
+              {orderedItems.map((item) => (
+                <SortableNavItem
+                  key={item.id}
+                  item={item}
+                  isActive={activeSection === item.id}
+                  isHorizontal={false}
+                  onNav={onNav}
+                />
+              ))}
+            </nav>
+          )}
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

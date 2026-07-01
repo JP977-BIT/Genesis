@@ -1,6 +1,23 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -40,12 +57,32 @@ const SECTION_IDS = [
 ] as const;
 
 const NAV_ITEMS = [
-  { id: "details",      label: "Details",      icon: Info       },
-  { id: "transactions", label: "Transactions", icon: CreditCard  },
-  { id: "age-analysis", label: "Age Analysis", icon: BarChart2   },
-  { id: "history",      label: "History",      icon: Clock       },
-  { id: "sales-info",   label: "Sales Info",   icon: TrendingUp  },
+  { id: "details", label: "Details", icon: Info },
+  { id: "transactions", label: "Transactions", icon: CreditCard },
+  { id: "age-analysis", label: "Age Analysis", icon: BarChart2 },
+  { id: "history", label: "History", icon: Clock },
+  { id: "sales-info", label: "Sales Info", icon: TrendingUp },
 ] as const;
+
+// ── Shared section order (localStorage key shared with SectionNav) ─────────
+const SECTION_ORDER_KEY = "genesis-client-nav-order";
+
+function loadSectionOrder(): string[] {
+  try {
+    const saved = localStorage.getItem(SECTION_ORDER_KEY);
+    if (saved) {
+      const ids = JSON.parse(saved) as string[];
+      const valid = ids.filter((id) =>
+        (SECTION_IDS as readonly string[]).includes(id),
+      );
+      const extra = (SECTION_IDS as readonly string[]).filter(
+        (id) => !valid.includes(id),
+      );
+      return [...valid, ...extra];
+    }
+  } catch {}
+  return [...SECTION_IDS];
+}
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Customer {
@@ -127,7 +164,7 @@ interface Transaction {
 const fmt = (n: number) =>
   n.toLocaleString("en-ZA", { minimumFractionDigits: 2 });
 
-const isDebitType  = (name: string) => /invoice|debit/i.test(name);
+const isDebitType = (name: string) => /invoice|debit/i.test(name);
 const isCreditType = (name: string) => /credit|receipt|payment/i.test(name);
 const isExpandable = (name: string) => /invoice|credit/i.test(name);
 
@@ -150,9 +187,7 @@ function useTransactions(
     let active = true;
     setLoading(true);
 
-    fetch(
-      `/api/transactions/debtors?companyNr=${companyNr}&accNo=${accNo}`,
-    )
+    fetch(`/api/transactions/debtors?companyNr=${companyNr}&accNo=${accNo}`)
       .then((r) => r.json())
       .then((result) => {
         if (!active) return;
@@ -185,9 +220,7 @@ function useAgeAnalysis(
 
     let active = true;
 
-    fetch(
-      `/api/customers/ageanalysis?companyNr=${companyNr}&accNo=${accNo}`,
-    )
+    fetch(`/api/customers/ageanalysis?companyNr=${companyNr}&accNo=${accNo}`)
       .then((r) => r.json())
       .then((result) => {
         if (!active) return;
@@ -206,9 +239,9 @@ function useAgeAnalysis(
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ClientDetailPage() {
-  const router   = useRouter();
-  const params   = useParams();
-  const accNo    = params.accNo as string;
+  const router = useRouter();
+  const params = useParams();
+  const accNo = params.accNo as string;
 
   // ── Sidebar state ──
   const [isExpanded, setIsExpanded] = useState(
@@ -231,12 +264,32 @@ export default function ClientDetailPage() {
     } catch {}
   }, []);
 
+  // ── Section order — shared between page sections and SectionNav ──
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() =>
+    typeof window !== "undefined" ? loadSectionOrder() : [...SECTION_IDS],
+  );
+
+  const orderedNavItems = sectionOrder
+    .map((id) => NAV_ITEMS.find((item) => item.id === id))
+    .filter((item): item is (typeof NAV_ITEMS)[number] => item !== undefined);
+
+  const handleSectionReorder = useCallback((newItems: { id: string }[]) => {
+    const newOrder = newItems.map((i) => i.id);
+    setSectionOrder(newOrder);
+    try {
+      localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(newOrder));
+    } catch {}
+  }, []);
+
   // ── Customer (eagerly fetched — needed for header immediately) ──
-  const [customer,    setCustomer   ] = useState<Customer | null>(null);
-  const [rawCustomer, setRawCustomer] = useState<Record<string, unknown> | null>(null);
-  const [loading,     setLoading    ] = useState(true);
-  const [error,       setError      ] = useState<string | null>(null);
-  const [showEdit,    setShowEdit   ] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [rawCustomer, setRawCustomer] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
   const [customerFetchKey, setCustomerFetchKey] = useState(0);
 
   useEffect(() => {
@@ -246,7 +299,7 @@ export default function ClientDetailPage() {
 
     (async () => {
       try {
-        const res    = await fetch(
+        const res = await fetch(
           `/api/customers/customer?companyNr=${companyNr}&accNo=${accNo}`,
         );
         const result = await res.json();
@@ -275,10 +328,10 @@ export default function ClientDetailPage() {
   const [notes, setNotes] = useState("");
 
   // ── Transaction expand / filter / line-items ──
-  const [expandedDoc,   setExpandedDoc  ] = useState<string | null>(null);
-  const [txFilter,      setTxFilter     ] = useState("All");
-  const [lineItems,     setLineItems    ] = useState<Record<string, InvoiceLine[]>>({});
-  const [loadingLines,  setLoadingLines ] = useState<Record<string, boolean>>({});
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+  const [txFilter, setTxFilter] = useState("All");
+  const [lineItems, setLineItems] = useState<Record<string, InvoiceLine[]>>({});
+  const [loadingLines, setLoadingLines] = useState<Record<string, boolean>>({});
 
   const fetchLineItems = useCallback(
     async (docNo: string) => {
@@ -286,7 +339,7 @@ export default function ClientDetailPage() {
 
       setLoadingLines((prev) => ({ ...prev, [docNo]: true }));
       try {
-        const res    = await fetch(
+        const res = await fetch(
           `/api/customertransactions/invoice?companyNr=${companyNr}&invoiceNr=${docNo}&warehouseNr=0`,
         );
         const result = await res.json();
@@ -303,17 +356,50 @@ export default function ClientDetailPage() {
     [companyNr, lineItems, loadingLines],
   );
 
+  // ── Page-level section drag-to-reorder (dnd-kit) ──
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  const pageSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handlePageDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  }, []);
+
+  const handlePageDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveDragId(null);
+      if (!over || active.id === over.id) return;
+      setSectionOrder((prev) => {
+        const next = arrayMove(
+          prev,
+          prev.indexOf(active.id as string),
+          prev.indexOf(over.id as string),
+        );
+        try {
+          localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    },
+    [],
+  );
+
   // ── Dockable nav panel ──
   const [dockPosition, setDockPosition] = useState<
     "left" | "right" | "top" | "bottom"
   >("left");
-  const [isDragging,  setIsDragging ] = useState(false);
-  const [dragPos,     setDragPos    ] = useState({ x: 0, y: 0 });
-  const [snapTarget,  setSnapTarget ] = useState<
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [snapTarget, setSnapTarget] = useState<
     "left" | "right" | "top" | "bottom" | null
   >(null);
-  const dragOffsetRef  = useRef({ x: 0, y: 0 });
-  const snapTargetRef  = useRef<"left" | "right" | "top" | "bottom" | null>(null);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const snapTargetRef = useRef<"left" | "right" | "top" | "bottom" | null>(
+    null,
+  );
 
   const handleNavDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -334,15 +420,15 @@ export default function ClientDetailPage() {
 
     const onMove = (e: MouseEvent) => {
       setDragPos({ x: e.clientX, y: e.clientY });
-      const W      = window.innerWidth;
-      const H      = window.innerHeight;
-      const SNAP   = 120;
-      const sbW    = isExpanded ? 192 : 56;
-      const dL     = e.clientX - sbW;
-      const dR     = W - e.clientX;
-      const dT     = e.clientY;
-      const dB     = H - e.clientY;
-      const min    = Math.min(dL, dR, dT, dB);
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const SNAP = 120;
+      const sbW = isExpanded ? 192 : 56;
+      const dL = e.clientX - sbW;
+      const dR = W - e.clientX;
+      const dT = e.clientY;
+      const dB = H - e.clientY;
+      const min = Math.min(dL, dR, dT, dB);
 
       let target: "left" | "right" | "top" | "bottom" | null = null;
       if (min <= SNAP) {
@@ -363,10 +449,10 @@ export default function ClientDetailPage() {
     };
 
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup",   onUp);
+    window.addEventListener("mouseup", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup",   onUp);
+      window.removeEventListener("mouseup", onUp);
     };
   }, [isDragging, isExpanded]);
 
@@ -376,14 +462,266 @@ export default function ClientDetailPage() {
   // the real element as root — avoiding the null-on-first-run timing hole that
   // a plain useRef would have.
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
-  const { activeSection, scrollToSection } = useScrollSpy(SECTION_IDS, mainEl);
+  const { activeSection, scrollToSection } = useScrollSpy(sectionOrder, mainEl);
 
   // ── Derived values ──
   const totalOutstanding = customer?.balance ?? 0;
-  const creditAvailable  = Math.max(
+  const creditAvailable = Math.max(
     0,
     (customer?.creditLimit ?? 0) - (customer?.balance ?? 0),
   );
+
+  // ── Section content renderer ──────────────────────────────────────────────
+  const renderSectionContent = (id: string) => {
+    switch (id) {
+      case "details":
+        return (
+          <LazySection id="details">
+            {() => (
+              <div className="space-y-5">
+                <section>
+                  <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                    Details
+                  </h2>
+                  <div className="flex divide-x divide-[#c6c6cd]">
+                    <div className="pr-12">
+                      <p className={`${labelCls} mb-1.5`}>TOTAL OUTSTANDING</p>
+                      <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
+                        {totalOutstanding.toLocaleString("en-ZA", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                    <div className="px-12">
+                      <p className={`${labelCls} mb-1.5`}>OVERDUE</p>
+                      <p className="text-[30px] font-bold text-[#ba1a1a] leading-none">
+                        0.00
+                      </p>
+                    </div>
+                    <div className="pl-12">
+                      <p className={`${labelCls} mb-1.5`}>CREDIT AVAILABLE</p>
+                      <p className="text-[30px] font-bold text-[#009668] leading-none">
+                        {creditAvailable.toLocaleString("en-ZA", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
+                      Contact Information
+                    </h3>
+                    <div className="flex flex-col flex-1">
+                      {[
+                        {
+                          label: "Contact Person",
+                          value: customer!.contact || "—",
+                          icons: ["phone"] as const,
+                        },
+                        {
+                          label: "Phone",
+                          value: customer!.phone || "—",
+                          icons: ["phone"] as const,
+                        },
+                        {
+                          label: "Fax",
+                          value: customer!.fax || "—",
+                          icons: ["phone"] as const,
+                        },
+                        {
+                          label: "Email",
+                          value: customer!.eMail?.trim() || "—",
+                          icons: ["message", "copy"] as const,
+                        },
+                      ].map((row) => (
+                        <div
+                          key={row.label}
+                          className="flex items-center justify-between py-3 border-b border-[#c6c6cd]/40 last:border-0"
+                        >
+                          <div>
+                            <p className={labelCls}>{row.label}</p>
+                            <p className="text-[14px] text-[#0b1c30] mt-0.5">
+                              {row.value}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {row.icons.map((icon) => (
+                              <button
+                                key={icon}
+                                className="w-7 h-7 rounded border border-[#c6c6cd] bg-white flex items-center justify-center text-[#76777d] hover:border-[#5bb8fe] hover:text-[#006398] transition-colors"
+                              >
+                                {icon === "phone" && <Phone size={12} />}
+                                {icon === "message" && (
+                                  <MessageSquare size={12} />
+                                )}
+                                {icon === "copy" && <Copy size={12} />}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                      Financial &amp; Admin
+                    </h3>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+                      <div>
+                        <p className={`${labelCls} mb-1`}>VAT Number</p>
+                        <p className="text-[14px] text-[#0b1c30]">
+                          {customer!.gstNumber || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={`${labelCls} mb-1`}>Credit Limit</p>
+                        <p className="text-[14px] text-[#0b1c30]">
+                          {customer!.creditLimit.toLocaleString("en-ZA", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={`${labelCls} mb-1`}>Trade Discount</p>
+                        <p className="text-[14px] text-[#0b1c30]">—</p>
+                      </div>
+                      <div>
+                        <p className={`${labelCls} mb-1`}>Tax Status</p>
+                        <span className="inline-flex items-center text-[11px] font-semibold text-[#009668] bg-[#009668]/10 border border-[#009668]/20 px-2.5 py-0.5 rounded-full">
+                          Compliant
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
+                        CLASSIFICATION
+                      </p>
+                      <div className="grid grid-cols-3 gap-x-4">
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Rep Code</p>
+                          <p className="text-[14px] text-[#0b1c30]">
+                            {customer!.repCode || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Area Code</p>
+                          <p className="text-[14px] text-[#0b1c30]">
+                            {customer!.category || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Terms</p>
+                          <p className="text-[14px] text-[#0b1c30]">30 Days</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
+                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
+                      Internal Notes
+                    </h3>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Add internal notes about this client…"
+                      className="flex-1 w-full resize-none text-[14px] text-[#0b1c30] placeholder:text-[#b0b1b8] focus:outline-none leading-relaxed min-h-[180px]"
+                    />
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#c6c6cd]/40">
+                      <p className="text-[11px] text-[#b0b1b8]">
+                        {notes.length > 0
+                          ? `${notes.length} characters`
+                          : "Not saved yet"}
+                      </p>
+                      <button
+                        onClick={() => alert("Notes saving coming soon!")}
+                        className="h-7 px-3 rounded bg-[#0b1c30] text-white text-[12px] font-medium hover:bg-[#131b2e] transition-colors"
+                      >
+                        Save Notes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </LazySection>
+        );
+
+      case "transactions":
+        return (
+          <LazySection id="transactions">
+            {(enabled) => (
+              <TransactionsSection
+                accNo={accNo}
+                companyNr={companyNr}
+                enabled={enabled}
+                expandedDoc={expandedDoc}
+                setExpandedDoc={setExpandedDoc}
+                txFilter={txFilter}
+                setTxFilter={setTxFilter}
+                lineItems={lineItems}
+                loadingLines={loadingLines}
+                fetchLineItems={fetchLineItems}
+              />
+            )}
+          </LazySection>
+        );
+
+      case "age-analysis":
+        return (
+          <LazySection id="age-analysis">
+            {(enabled) => (
+              <AgeAnalysisSection
+                accNo={accNo}
+                companyNr={companyNr}
+                enabled={enabled}
+                customer={customer!}
+              />
+            )}
+          </LazySection>
+        );
+
+      case "history":
+        return (
+          <LazySection id="history">
+            {() => (
+              <div>
+                <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                  History
+                </h2>
+                <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
+                  <p className="text-sm text-[#76777d]">
+                    Account history coming soon
+                  </p>
+                </div>
+              </div>
+            )}
+          </LazySection>
+        );
+
+      case "sales-info":
+        return (
+          <LazySection id="sales-info">
+            {() => (
+              <div>
+                <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
+                  Sales Info
+                </h2>
+                <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
+                  <p className="text-sm text-[#76777d]">
+                    Sales information coming soon
+                  </p>
+                </div>
+              </div>
+            )}
+          </LazySection>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -396,7 +734,6 @@ export default function ClientDetailPage() {
       />
 
       <div className="flex flex-col flex-1 overflow-hidden">
-
         {/* ── Loading state ── */}
         {loading && (
           <div className="flex-1 flex items-center justify-center">
@@ -475,15 +812,16 @@ export default function ClientDetailPage() {
                 dockPosition === "top"
                   ? "flex-col"
                   : dockPosition === "bottom"
-                  ? "flex-col-reverse"
-                  : dockPosition === "right"
-                  ? "flex-row-reverse"
-                  : "flex-row"
+                    ? "flex-col-reverse"
+                    : dockPosition === "right"
+                      ? "flex-row-reverse"
+                      : "flex-row"
               }`}
             >
               {/* ── Secondary nav panel (now scroll-links, not tab-switches) ── */}
               <SectionNav
-                items={NAV_ITEMS}
+                orderedItems={orderedNavItems}
+                onReorder={handleSectionReorder}
                 activeSection={activeSection}
                 onNav={scrollToSection}
                 dockPosition={dockPosition}
@@ -491,264 +829,52 @@ export default function ClientDetailPage() {
                 onDragStart={handleNavDragStart}
               />
 
-              {/* ── Scrollable content — all sections stacked ── */}
+              {/* ── Scrollable content — sections rendered in drag order ── */}
               <main
                 ref={setMainEl}
-                className={`flex-1 overflow-y-auto p-6 space-y-8 ${
+                className={`flex-1 overflow-y-auto p-6 ${
                   dockPosition === "left" ? "pl-2" : "pl-6"
                 }`}
               >
-                {/* ══════════════════════════════════════════════════════════
-                    SECTION 1 — Details
-                    Always at the top; customer data already loaded eagerly.
-                ══════════════════════════════════════════════════════════ */}
-                <LazySection id="details">
-                  {() => (
-                    // `enabled` is always true for Details (it's immediately
-                    // in view and customer data is already fetched), so we
-                    // ignore the render-prop argument here.
-                    <div className="space-y-5">
-                      {/* Financial Summary */}
-                      <section>
-                        <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                          Financial Summary
-                        </h2>
-                        <div className="flex divide-x divide-[#c6c6cd]">
-                          <div className="pr-12">
-                            <p className={`${labelCls} mb-1.5`}>TOTAL OUTSTANDING</p>
-                            <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
-                              {totalOutstanding.toLocaleString("en-ZA", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </p>
-                          </div>
-                          <div className="px-12">
-                            <p className={`${labelCls} mb-1.5`}>OVERDUE</p>
-                            <p className="text-[30px] font-bold text-[#ba1a1a] leading-none">
-                              0.00
-                            </p>
-                          </div>
-                          <div className="pl-12">
-                            <p className={`${labelCls} mb-1.5`}>CREDIT AVAILABLE</p>
-                            <p className="text-[30px] font-bold text-[#009668] leading-none">
-                              {creditAvailable.toLocaleString("en-ZA", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                      </section>
-
-                      {/* Three column cards */}
-                      <div className="grid grid-cols-3 gap-4">
-                        {/* Contact Information */}
-                        <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                          <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                            Contact Information
-                          </h3>
-                          <div className="flex flex-col flex-1">
-                            {[
-                              { label: "Contact Person", value: customer.contact || "—", icons: ["phone"] as const },
-                              { label: "Phone",          value: customer.phone   || "—", icons: ["phone"] as const },
-                              { label: "Fax",            value: customer.fax     || "—", icons: ["phone"] as const },
-                              { label: "Email",          value: customer.eMail?.trim() || "—", icons: ["message", "copy"] as const },
-                            ].map((row) => (
-                              <div
-                                key={row.label}
-                                className="flex items-center justify-between py-3 border-b border-[#c6c6cd]/40 last:border-0"
-                              >
-                                <div>
-                                  <p className={labelCls}>{row.label}</p>
-                                  <p className="text-[14px] text-[#0b1c30] mt-0.5">
-                                    {row.value}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {row.icons.map((icon) => (
-                                    <button
-                                      key={icon}
-                                      className="w-7 h-7 rounded border border-[#c6c6cd] bg-white flex items-center justify-center text-[#76777d] hover:border-[#5bb8fe] hover:text-[#006398] transition-colors"
-                                    >
-                                      {icon === "phone"   && <Phone        size={12} />}
-                                      {icon === "message" && <MessageSquare size={12} />}
-                                      {icon === "copy"    && <Copy          size={12} />}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Financial & Admin */}
-                        <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                          <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                            Financial &amp; Admin
-                          </h3>
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
-                            <div>
-                              <p className={`${labelCls} mb-1`}>VAT Number</p>
-                              <p className="text-[14px] text-[#0b1c30]">
-                                {customer.gstNumber || "—"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className={`${labelCls} mb-1`}>Credit Limit</p>
-                              <p className="text-[14px] text-[#0b1c30]">
-                                {customer.creditLimit.toLocaleString("en-ZA", {
-                                  minimumFractionDigits: 2,
-                                })}
-                              </p>
-                            </div>
-                            <div>
-                              <p className={`${labelCls} mb-1`}>Trade Discount</p>
-                              <p className="text-[14px] text-[#0b1c30]">—</p>
-                            </div>
-                            <div>
-                              <p className={`${labelCls} mb-1`}>Tax Status</p>
-                              <span className="inline-flex items-center text-[11px] font-semibold text-[#009668] bg-[#009668]/10 border border-[#009668]/20 px-2.5 py-0.5 rounded-full">
-                                Compliant
-                              </span>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
-                              CLASSIFICATION
-                            </p>
-                            <div className="grid grid-cols-3 gap-x-4">
-                              <div>
-                                <p className={`${labelCls} mb-1`}>Rep Code</p>
-                                <p className="text-[14px] text-[#0b1c30]">
-                                  {customer.repCode || "—"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className={`${labelCls} mb-1`}>Area Code</p>
-                                <p className="text-[14px] text-[#0b1c30]">
-                                  {customer.category || "—"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className={`${labelCls} mb-1`}>Terms</p>
-                                <p className="text-[14px] text-[#0b1c30]">30 Days</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Internal Notes */}
-                        <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                          <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                            Internal Notes
-                          </h3>
-                          <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Add internal notes about this client…"
-                            className="flex-1 w-full resize-none text-[14px] text-[#0b1c30] placeholder:text-[#b0b1b8] focus:outline-none leading-relaxed min-h-[180px]"
-                          />
-                          <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#c6c6cd]/40">
-                            <p className="text-[11px] text-[#b0b1b8]">
-                              {notes.length > 0
-                                ? `${notes.length} characters`
-                                : "Not saved yet"}
-                            </p>
-                            <button
-                              onClick={() => alert("Notes saving coming soon!")}
-                              className="h-7 px-3 rounded bg-[#0b1c30] text-white text-[12px] font-medium hover:bg-[#131b2e] transition-colors"
-                            >
-                              Save Notes
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                <DndContext
+                  sensors={pageSensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handlePageDragStart}
+                  onDragEnd={handlePageDragEnd}
+                >
+                  <SortableContext
+                    items={sectionOrder}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-8">
+                      {sectionOrder.map((sectionId, index) => (
+                        <React.Fragment key={sectionId}>
+                          {index > 0 && (
+                            <div className="border-t border-[#c6c6cd]/60" />
+                          )}
+                          <SortablePageSection id={sectionId}>
+                            {renderSectionContent(sectionId)}
+                          </SortablePageSection>
+                        </React.Fragment>
+                      ))}
                     </div>
-                  )}
-                </LazySection>
+                  </SortableContext>
 
-                {/* Section divider */}
-                <div className="border-t border-[#c6c6cd]/60" />
-
-                {/* ══════════════════════════════════════════════════════════
-                    SECTION 2 — Transactions
-                    Data is fetched lazily once this section is ~200px from view.
-                ══════════════════════════════════════════════════════════ */}
-                <LazySection id="transactions">
-                  {(enabled) => (
-                    <TransactionsSection
-                      accNo={accNo}
-                      companyNr={companyNr}
-                      enabled={enabled}
-                      expandedDoc={expandedDoc}
-                      setExpandedDoc={setExpandedDoc}
-                      txFilter={txFilter}
-                      setTxFilter={setTxFilter}
-                      lineItems={lineItems}
-                      loadingLines={loadingLines}
-                      fetchLineItems={fetchLineItems}
-                    />
-                  )}
-                </LazySection>
-
-                {/* Section divider */}
-                <div className="border-t border-[#c6c6cd]/60" />
-
-                {/* ══════════════════════════════════════════════════════════
-                    SECTION 3 — Age Analysis
-                    Fetched lazily; independent of the Details section.
-                ══════════════════════════════════════════════════════════ */}
-                <LazySection id="age-analysis">
-                  {(enabled) => (
-                    <AgeAnalysisSection
-                      accNo={accNo}
-                      companyNr={companyNr}
-                      enabled={enabled}
-                      customer={customer}
-                    />
-                  )}
-                </LazySection>
-
-                {/* Section divider */}
-                <div className="border-t border-[#c6c6cd]/60" />
-
-                {/* ══════════════════════════════════════════════════════════
-                    SECTION 4 — History (placeholder)
-                ══════════════════════════════════════════════════════════ */}
-                <LazySection id="history">
-                  {() => (
-                    <div>
-                      <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                        History
-                      </h2>
-                      <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
-                        <p className="text-sm text-[#76777d]">
-                          Account history coming soon
-                        </p>
+                  <DragOverlay>
+                    {activeDragId ? (
+                      <div className="bg-white rounded-lg border-2 border-[#006398] shadow-[0_8px_24px_rgba(15,23,42,0.2)] px-4 py-3 flex items-center gap-2.5 cursor-grabbing select-none">
+                        <GripHorizontal
+                          size={14}
+                          className="text-[#006398] shrink-0"
+                        />
+                        <span className="text-[13px] font-semibold text-[#0b1c30]">
+                          {NAV_ITEMS.find((i) => i.id === activeDragId)
+                            ?.label ?? activeDragId}
+                        </span>
                       </div>
-                    </div>
-                  )}
-                </LazySection>
-
-                {/* Section divider */}
-                <div className="border-t border-[#c6c6cd]/60" />
-
-                {/* ══════════════════════════════════════════════════════════
-                    SECTION 5 — Sales Info (placeholder)
-                ══════════════════════════════════════════════════════════ */}
-                <LazySection id="sales-info">
-                  {() => (
-                    <div>
-                      <h2 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                        Sales Info
-                      </h2>
-                      <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
-                        <p className="text-sm text-[#76777d]">
-                          Sales information coming soon
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </LazySection>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
 
                 {/* Bottom breathing room */}
                 <div className="pb-6" />
@@ -769,10 +895,10 @@ export default function ClientDetailPage() {
                         zone === "left"
                           ? "top-0 h-full w-24"
                           : zone === "right"
-                          ? "right-0 top-0 h-full w-24"
-                          : zone === "top"
-                          ? "top-0 left-0 w-full h-24"
-                          : "bottom-0 left-0 w-full h-24"
+                            ? "right-0 top-0 h-full w-24"
+                            : zone === "top"
+                              ? "top-0 left-0 w-full h-24"
+                              : "bottom-0 left-0 w-full h-24"
                       } ${
                         snapTarget === zone
                           ? "bg-[#006398]/50"
@@ -798,7 +924,7 @@ export default function ClientDetailPage() {
                     style={{
                       position: "fixed",
                       left: dragPos.x - dragOffsetRef.current.x,
-                      top:  dragPos.y - dragOffsetRef.current.y,
+                      top: dragPos.y - dragOffsetRef.current.y,
                       zIndex: 50,
                       pointerEvents: "none",
                     }}
@@ -811,7 +937,7 @@ export default function ClientDetailPage() {
                           Navigation
                         </span>
                       </div>
-                      {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                      {orderedNavItems.map(({ id, label, icon: Icon }) => (
                         <div
                           key={id}
                           className={`w-full px-4 py-2.5 text-[13px] font-medium border-b border-[#c6c6cd]/50 last:border-0 flex items-center gap-2.5 ${
@@ -847,13 +973,22 @@ export default function ClientDetailPage() {
                 © 2024 Revelation Suite Finance Operations
               </p>
               <div className="flex items-center gap-5">
-                <a href="#" className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors">
+                <a
+                  href="#"
+                  className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors"
+                >
                   Privacy Policy
                 </a>
-                <a href="#" className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors">
+                <a
+                  href="#"
+                  className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors"
+                >
                   Terms of Service
                 </a>
-                <a href="#" className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors">
+                <a
+                  href="#"
+                  className="text-[12px] text-[#45464d] hover:text-[#006398] transition-colors"
+                >
                   Support
                 </a>
               </div>
@@ -868,6 +1003,46 @@ export default function ClientDetailPage() {
 // ── Section sub-components ─────────────────────────────────────────────────────
 // Defined below the page export so they can use hooks but still share types
 // from this file. They are NOT exported — they are local to this route.
+
+function SortablePageSection({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1,
+      }}
+      {...attributes}
+      className="relative group"
+    >
+      {/* Spreading listeners only on the handle restricts drag to this icon */}
+      <div
+        {...listeners}
+        className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1.5 text-[#b0b1b8] hover:text-[#76777d] z-10 touch-none"
+        title="Drag to reorder"
+      >
+        <GripHorizontal size={14} />
+      </div>
+      {children}
+    </div>
+  );
+}
 
 interface TransactionsSectionProps {
   accNo: string;
@@ -984,15 +1159,13 @@ function TransactionsSection({
 
           {/* Data rows */}
           {transactions
-            .filter(
-              (t) => txFilter === "All" || t.tranTypeName === txFilter,
-            )
+            .filter((t) => txFilter === "All" || t.tranTypeName === txFilter)
             .map((tx, idx) => {
-              const rowKey   = tx.ref + idx;
-              const isOpen   = expandedDoc === rowKey;
+              const rowKey = tx.ref + idx;
+              const isOpen = expandedDoc === rowKey;
               const canExpand = isExpandable(tx.tranTypeName);
-              const isCredit  = isCreditType(tx.tranTypeName);
-              const isDebit   = isDebitType(tx.tranTypeName);
+              const isCredit = isCreditType(tx.tranTypeName);
+              const isDebit = isDebitType(tx.tranTypeName);
 
               return (
                 <div
@@ -1034,21 +1207,21 @@ function TransactionsSection({
                           isDebit
                             ? "bg-[#eff4ff] text-[#006398] border-[#006398]/20"
                             : isCredit
-                            ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
-                            : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
+                              ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
+                              : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
                         }`}
                       >
                         {tx.tranTypeName}
                       </span>
                     </span>
-                    <span className="text-[13px] font-medium text-[#0b1c30] truncate">
+                    <span className="min-w-0 text-[13px] font-medium text-[#0b1c30] truncate">
                       {tx.ref || "—"}
                     </span>
-                    <span className="text-[13px] text-[#45464d] truncate">
+                    <span className="min-w-0 text-[13px] text-[#45464d] truncate">
                       {tx.contraName || tx.notes || "—"}
                     </span>
                     <span
-                      className={`text-[13px] font-semibold text-right ${
+                      className={`flex justify-end items-center text-[13px] font-semibold ${
                         isCredit ? "text-[#009668]" : "text-[#0b1c30]"
                       }`}
                     >
@@ -1062,8 +1235,8 @@ function TransactionsSection({
                             /paid|closed|settled/i.test(tx.statusName)
                               ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
                               : /open|outstanding/i.test(tx.statusName)
-                              ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
-                              : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
+                                ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
+                                : "bg-[#f8f9ff] text-[#45464d] border-[#c6c6cd]"
                           }`}
                         >
                           {tx.statusName}
@@ -1089,12 +1262,24 @@ function TransactionsSection({
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-[#c6c6cd]/50">
-                              <th className={`${labelCls} text-left pb-2`}>Stock Code</th>
-                              <th className={`${labelCls} text-left pb-2`}>Description</th>
-                              <th className={`${labelCls} text-right pb-2`}>Qty</th>
-                              <th className={`${labelCls} text-right pb-2`}>Unit Price</th>
-                              <th className={`${labelCls} text-right pb-2`}>Disc%</th>
-                              <th className={`${labelCls} text-right pb-2`}>Line Total</th>
+                              <th className={`${labelCls} text-left pb-2`}>
+                                Stock Code
+                              </th>
+                              <th className={`${labelCls} text-left pb-2`}>
+                                Description
+                              </th>
+                              <th className={`${labelCls} text-right pb-2`}>
+                                Qty
+                              </th>
+                              <th className={`${labelCls} text-right pb-2`}>
+                                Unit Price
+                              </th>
+                              <th className={`${labelCls} text-right pb-2`}>
+                                Disc%
+                              </th>
+                              <th className={`${labelCls} text-right pb-2`}>
+                                Line Total
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1155,13 +1340,13 @@ function AgeAnalysisSection({
   const ageAnalysis = useAgeAnalysis(accNo, companyNr, enabled);
 
   const buckets = [
-    { label: "CURRENT",   value: ageAnalysis?.current  ?? 0 },
-    { label: "30 DAYS",   value: ageAnalysis?.days30   ?? 0 },
-    { label: "60 DAYS",   value: ageAnalysis?.days60   ?? 0 },
-    { label: "90 DAYS",   value: ageAnalysis?.days90   ?? 0 },
-    { label: "120 DAYS",  value: ageAnalysis?.days120  ?? 0 },
-    { label: "150 DAYS",  value: ageAnalysis?.days150  ?? 0 },
-    { label: "180+ DAYS", value: ageAnalysis?.days180  ?? 0 },
+    { label: "CURRENT", value: ageAnalysis?.current ?? 0 },
+    { label: "30 DAYS", value: ageAnalysis?.days30 ?? 0 },
+    { label: "60 DAYS", value: ageAnalysis?.days60 ?? 0 },
+    { label: "90 DAYS", value: ageAnalysis?.days90 ?? 0 },
+    { label: "120 DAYS", value: ageAnalysis?.days120 ?? 0 },
+    { label: "150 DAYS", value: ageAnalysis?.days150 ?? 0 },
+    { label: "180+ DAYS", value: ageAnalysis?.days180 ?? 0 },
   ];
 
   return (
