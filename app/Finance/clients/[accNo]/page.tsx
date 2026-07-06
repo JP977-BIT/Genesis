@@ -367,25 +367,22 @@ export default function ClientDetailPage() {
     setActiveDragId(event.active.id as string);
   }, []);
 
-  const handlePageDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveDragId(null);
-      if (!over || active.id === over.id) return;
-      setSectionOrder((prev) => {
-        const next = arrayMove(
-          prev,
-          prev.indexOf(active.id as string),
-          prev.indexOf(over.id as string),
-        );
-        try {
-          localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    },
-    [],
-  );
+  const handlePageDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+    if (!over || active.id === over.id) return;
+    setSectionOrder((prev) => {
+      const next = arrayMove(
+        prev,
+        prev.indexOf(active.id as string),
+        prev.indexOf(over.id as string),
+      );
+      try {
+        localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // ── Dockable nav panel ──
   const [dockPosition, setDockPosition] = useState<
@@ -1063,6 +1060,7 @@ function TransactionsSection({
   enabled,
   expandedDoc,
   setExpandedDoc,
+
   txFilter,
   setTxFilter,
   lineItems,

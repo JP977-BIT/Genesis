@@ -34,13 +34,16 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verify the JWT locally against the project's JWKS (ES256) instead of
+  // calling the Supabase Auth server on every request. The JWKS is cached
+  // process-wide by auth-js, and getClaims() still refreshes the session
+  // (via the cookie hooks above) when the access token is near expiry.
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub ?? null;
 
   // Stamp the verified user ID — route handlers read this instead of calling getUser()
-  if (user) {
-    requestHeaders.set("x-user-id", user.id);
+  if (userId) {
+    requestHeaders.set("x-user-id", userId);
   }
 
   // Build one clean response with the stamped headers
@@ -55,13 +58,13 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
-  if (!user && !isLoginPage) {
+  if (!userId && !isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
+  if (userId && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/company-select";
     return NextResponse.redirect(url);

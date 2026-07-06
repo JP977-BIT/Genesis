@@ -1,18 +1,11 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { getUserWithApiConnection } from "@/src/server/supabase/getUserWithApiConnection";
 import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
 
-interface CachedCustomers {
-  data: unknown;
-  expiresAt: number;
-}
-
-// Keyed by `clientId:companyNr:startingRow:numberOfRecords`
-const customersCache = new Map<string, CachedCustomers>();
-
-const FIVE_MINUTES = 5 * 60 * 1000;
+const FIVE_MINUTES_S = 5 * 60;
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
@@ -62,14 +55,6 @@ export async function GET(request: NextRequest) {
 
   const { clientId, apiPin, apiConnection } = userData;
 
-  // Return cached customers if still fresh — skips the 1.5s Revelation API call
-  const cacheKey = `${clientId}:${companyNr}:${startingRow}:${numberOfRecords}`;
-  const now = Date.now();
-  const cached = customersCache.get(cacheKey);
-  if (cached && cached.expiresAt > now) {
-    return NextResponse.json(cached.data);
-  }
-
   const token = await getRevelationToken(clientId, apiConnection, apiPin);
   if (!token) {
     return NextResponse.json(
@@ -78,34 +63,59 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.time("fetchCustomers");
-  const customersResponse = await fetch(
-    `${apiConnection.api_base_url}/api/customers/customers`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        companyNr: companyNr,
-        startingRow: startingRow,
-        numberOfRecords: numberOfRecords,
-      }),
-      signal: AbortSignal.timeout(30000),
-    },
-  );
-  console.timeEnd("fetchCustomers");
+  // Cached in the Next.js data cache — persists across serverless instances,
+  // so the 1.5s Revelation call is paid once per 5 minutes, not once per
+  // instance. The token stays in the closure: the data's identity is
+  // (client, company, page), and keying by token would bust the cache on
+  // every token rotation.
+  try {
+    const customersData = await unstable_cache(
+      async () => {
+        console.time("fetchCustomers");
+        const customersResponse = await fetch(
+          `${apiConnection.api_base_url}/api/customers/customers`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              companyNr: companyNr,
+              startingRow: startingRow,
+              numberOfRecords: numberOfRecords,
+            }),
+            signal: AbortSignal.timeout(30000),
+          },
+        );
+        console.timeEnd("fetchCustomers");
 
-  if (!customersResponse.ok) {
+        if (!customersResponse.ok) {
+          // Thrown errors are not cached — an upstream failure must not be
+          // served as a result for the next 5 minutes.
+          throw new Error(`Upstream API error ${customersResponse.status}`);
+        }
+
+        return customersResponse.json();
+      },
+      [
+        "customers",
+        clientId,
+        companyNr,
+        String(startingRow),
+        String(numberOfRecords),
+      ],
+      {
+        revalidate: FIVE_MINUTES_S,
+        tags: [`customers-${clientId}-${companyNr}`],
+      },
+    )();
+
+    return NextResponse.json(customersData);
+  } catch {
     return NextResponse.json(
       { message: "Upstream API error" },
       { status: 502 },
     );
   }
-
-  const customersData = await customersResponse.json();
-  customersCache.set(cacheKey, { data: customersData, expiresAt: now + FIVE_MINUTES });
-
-  return NextResponse.json(customersData);
 }

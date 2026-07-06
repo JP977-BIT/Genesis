@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { revalidateTag } from "next/cache";
 import { getUserWithApiConnection } from "@/src/server/supabase/getUserWithApiConnection";
 import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
 
@@ -102,6 +103,11 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  // The customer list is cached for 5 minutes — hard-expire it ({ expire: 0 },
+  // not "max"/SWR) so the refetch the UI fires right after saving sees the
+  // edit instead of one last stale copy.
+  revalidateTag(`customers-${clientId}-${companyNr}`, { expire: 0 });
 
   return NextResponse.json({ success: true, data: result.data });
 }

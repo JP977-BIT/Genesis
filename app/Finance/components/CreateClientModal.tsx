@@ -22,7 +22,15 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className={labelCls}>
@@ -34,7 +42,15 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Check({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="flex items-center gap-2 cursor-pointer select-none">
       <input
@@ -98,16 +114,44 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  accNo: "", name: "", title: "", initials: "",
-  contact: "", phone: "", cellPhone: "", fax: "", eMail: "",
-  address1: "", address2: "", address3: "", address4: "",
-  accType: 0, category: "", terms: "", repCode: "", areaCode: "",
-  branchCode: "", stockPrc: "", creditLimit: 0, tradeDisc: 0,
-  settleDisc: 0, currency: 0,
-  bank: "", bankCode: "", bankAccNo: "",
-  activeYN: true, stmtsYN: false, payVatYN: true, noHoldYN: false,
-  odIntYN: false, ordersYN: true, labelsYN: false, exclInclYN: false,
-  notes: "", gstNumber: "", vendorNo: "",
+  accNo: "",
+  name: "",
+  title: "",
+  initials: "",
+  contact: "",
+  phone: "",
+  cellPhone: "",
+  fax: "",
+  eMail: "",
+  address1: "",
+  address2: "",
+  address3: "",
+  address4: "",
+  accType: 0,
+  category: "",
+  terms: "",
+  repCode: "",
+  areaCode: "",
+  branchCode: "",
+  stockPrc: "",
+  creditLimit: 0,
+  tradeDisc: 0,
+  settleDisc: 0,
+  currency: 0,
+  bank: "",
+  bankCode: "",
+  bankAccNo: "",
+  activeYN: true,
+  stmtsYN: false,
+  payVatYN: true,
+  noHoldYN: false,
+  odIntYN: false,
+  ordersYN: true,
+  labelsYN: false,
+  exclInclYN: false,
+  notes: "",
+  gstNumber: "",
+  vendorNo: "",
 };
 
 // Builds the full Revelation customer object from the form, filling every
@@ -117,26 +161,95 @@ function buildCustomer(f: FormState): Record<string, unknown> {
   return {
     ...f,
     // System-computed fields default to 0 / false / ""
-    days180: 0, days150: 0, days120: 0, days90: 0, days60: 0, days30: 0,
-    current: 0, balance: 0, bFrwd: 0, newCurrent: 0, oiCounter: 0,
-    instal6: 0, instal5: 0, instal4: 0, instal3: 0, instal2: 0, instal1: 0, instal0: 0,
-    days180Last: 0, days150Last: 0, days120Last: 0, days90Last: 0,
-    days60Last: 0, days30Last: 0, currentLast: 0, balanceLast: 0,
-    mtdcp: 0, mtdsp: 0, mtdProfit: 0, ytdcp: 0, ytdsp: 0, ytdProfit: 0,
-    mtdManual: 0, ytdManual: 0, lastInvAmt: 0, lastRecAmt: 0,
-    sendInvoiceBy: 0, deliveryMethod: 0, industry: 0,
-    flagYN9: false, flagYN10: false, loyaltyYN: false, loyaltyCardNo: "",
-    optOrdMail: false, optFaxMail: false, optEMail: false,
-    custom1: "", custom2: "", custom3: "", custom4: "", custom5: "", custom6: "",
-    agedInv: "", keepTrans: "", intPeriod: "", programVersion: "", vendorNo: f.vendorNo,
-    dateOpen: today, lastInvDt: today, lastRecDt: today,
+    days180: 0,
+    days150: 0,
+    days120: 0,
+    days90: 0,
+    days60: 0,
+    days30: 0,
+    current: 0,
+    balance: 0,
+    bFrwd: 0,
+    newCurrent: 0,
+    oiCounter: 0,
+    instal6: 0,
+    instal5: 0,
+    instal4: 0,
+    instal3: 0,
+    instal2: 0,
+    instal1: 0,
+    instal0: 0,
+    days180Last: 0,
+    days150Last: 0,
+    days120Last: 0,
+    days90Last: 0,
+    days60Last: 0,
+    days30Last: 0,
+    currentLast: 0,
+    balanceLast: 0,
+    mtdcp: 0,
+    mtdsp: 0,
+    mtdProfit: 0,
+    ytdcp: 0,
+    ytdsp: 0,
+    ytdProfit: 0,
+    mtdManual: 0,
+    ytdManual: 0,
+    lastInvAmt: 0,
+    lastRecAmt: 0,
+    sendInvoiceBy: 0,
+    deliveryMethod: 0,
+    industry: 0,
+    flagYN9: false,
+    flagYN10: false,
+    loyaltyYN: false,
+    loyaltyCardNo: "",
+    optOrdMail: false,
+    optFaxMail: false,
+    optEMail: false,
+    custom1: "",
+    custom2: "",
+    custom3: "",
+    custom4: "",
+    custom5: "",
+    custom6: "",
+    agedInv: "",
+    keepTrans: "",
+    intPeriod: "",
+    programVersion: "",
+    vendorNo: f.vendorNo,
+    dateOpen: today,
+    lastInvDt: today,
+    lastRecDt: today,
   };
+}
+
+// Derives a unique account number from the client's name. Takes up to 6
+// alphanumeric characters of the name (uppercased) as a prefix, then appends
+// the lowest zero-padded counter that isn't already taken — guaranteeing no
+// two clients share an account number.
+function generateAccNo(name: string, existingAccNos: string[]): string {
+  const prefix =
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 6) || "CUST";
+  const taken = new Set(existingAccNos.map((a) => a.trim().toUpperCase()));
+
+  let n = 1;
+  let candidate = `${prefix}${String(n).padStart(3, "0")}`;
+  while (taken.has(candidate)) {
+    n += 1;
+    candidate = `${prefix}${String(n).padStart(3, "0")}`;
+  }
+  return candidate;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface CreateClientModalProps {
   isOpen: boolean;
   companyNr: string | null;
+  existingAccNos: string[];
   onClose: () => void;
   onCreated: () => void;
 }
@@ -145,35 +258,71 @@ interface CreateClientModalProps {
 export default function CreateClientModal({
   isOpen,
   companyNr,
+  existingAccNos,
   onClose,
   onCreated,
 }: CreateClientModalProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Once the user hand-edits the account number we stop auto-generating it,
+  // so their choice is never overwritten as they keep typing the name.
+  const [accNoEdited, setAccNoEdited] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setForm(EMPTY_FORM);
       setError(null);
+      setAccNoEdited(false);
     }
   }, [isOpen]);
 
-  const str = (field: keyof FormState) =>
+  // Auto-fill the account number from the name until the user overrides it.
+  const onNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setForm((p) => ({
+      ...p,
+      name,
+      accNo: accNoEdited ? p.accNo : generateAccNo(name, existingAccNos),
+    }));
+  };
+
+  const onAccNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAccNoEdited(true);
+    setForm((p) => ({ ...p, accNo: e.target.value }));
+  };
+
+  const str =
+    (field: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((p) => ({ ...p, [field]: e.target.value }));
 
-  const num = (field: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement>) =>
+  const num =
+    (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((p) => ({ ...p, [field]: parseFloat(e.target.value) || 0 }));
 
-  const chk = (field: keyof FormState) =>
-    (v: boolean) => setForm((p) => ({ ...p, [field]: v }));
+  const chk = (field: keyof FormState) => (v: boolean) =>
+    setForm((p) => ({ ...p, [field]: v }));
 
   const handleSubmit = async () => {
-    if (!form.accNo.trim()) { setError("Account number is required"); return; }
-    if (!form.name.trim())  { setError("Name is required"); return; }
-    if (!companyNr)         { setError("No company selected"); return; }
+    if (!form.accNo.trim()) {
+      setError("Account number is required");
+      return;
+    }
+    if (!form.name.trim()) {
+      setError("Name is required");
+      return;
+    }
+    if (!companyNr) {
+      setError("No company selected");
+      return;
+    }
+
+    const taken = new Set(existingAccNos.map((a) => a.trim().toUpperCase()));
+    if (taken.has(form.accNo.trim().toUpperCase())) {
+      setError(`Account number "${form.accNo.trim()}" already exists`);
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -203,10 +352,11 @@ export default function CreateClientModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#c6c6cd]/60 shrink-0">
           <div>
@@ -214,7 +364,8 @@ export default function CreateClientModal({
               New Client
             </h2>
             <p className="text-[12px] text-[#76777d] mt-0.5">
-              Fields marked <span className="text-[#ba1a1a]">*</span> are required
+              Fields marked <span className="text-[#ba1a1a]">*</span> are
+              required
             </p>
           </div>
           <button
@@ -227,25 +378,46 @@ export default function CreateClientModal({
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-5">
-
           {/* Identity */}
           <SectionHeader title="Identity" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <Field label="Account No" required>
-              <input className={inputCls} value={form.accNo} onChange={str("accNo")}
-                placeholder="e.g. ACC001" autoFocus />
-            </Field>
             <Field label="Name" required>
-              <input className={inputCls} value={form.name} onChange={str("name")}
-                placeholder="Company or person name" />
+              <input
+                className={inputCls}
+                value={form.name}
+                onChange={onNameChange}
+                placeholder="Company or person name"
+                autoFocus
+              />
+            </Field>
+            <Field label="Account No" required>
+              <input
+                className={inputCls}
+                value={form.accNo}
+                onChange={onAccNoChange}
+                placeholder="Auto-generated from name"
+              />
+              <p className="text-[11px] text-[#76777d] mt-1">
+                {accNoEdited
+                  ? "Custom account number"
+                  : "Auto-generated & unique — edit to override"}
+              </p>
             </Field>
             <Field label="Title">
-              <input className={inputCls} value={form.title} onChange={str("title")}
-                placeholder="Mr / Ms / Dr" />
+              <input
+                className={inputCls}
+                value={form.title}
+                onChange={str("title")}
+                placeholder="Mr / Ms / Dr"
+              />
             </Field>
             <Field label="Initials">
-              <input className={inputCls} value={form.initials} onChange={str("initials")}
-                placeholder="J.P." />
+              <input
+                className={inputCls}
+                value={form.initials}
+                onChange={str("initials")}
+                placeholder="D.D"
+              />
             </Field>
           </div>
 
@@ -253,24 +425,45 @@ export default function CreateClientModal({
           <SectionHeader title="Contact" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Field label="Contact Person">
-              <input className={inputCls} value={form.contact} onChange={str("contact")}
-                placeholder="Full name" />
+              <input
+                className={inputCls}
+                value={form.contact}
+                onChange={str("contact")}
+                placeholder="Full name"
+              />
             </Field>
             <Field label="Email">
-              <input className={inputCls} type="email" value={form.eMail} onChange={str("eMail")}
-                placeholder="email@example.com" />
+              <input
+                className={inputCls}
+                type="email"
+                value={form.eMail}
+                onChange={str("eMail")}
+                placeholder="email@example.com"
+              />
             </Field>
             <Field label="Phone">
-              <input className={inputCls} value={form.phone} onChange={str("phone")}
-                placeholder="+27 11 000 0000" />
+              <input
+                className={inputCls}
+                value={form.phone}
+                onChange={str("phone")}
+                placeholder="+27 11 000 0000"
+              />
             </Field>
             <Field label="Cell Phone">
-              <input className={inputCls} value={form.cellPhone} onChange={str("cellPhone")}
-                placeholder="+27 82 000 0000" />
+              <input
+                className={inputCls}
+                value={form.cellPhone}
+                onChange={str("cellPhone")}
+                placeholder="+27 82 000 0000"
+              />
             </Field>
             <Field label="Fax">
-              <input className={inputCls} value={form.fax} onChange={str("fax")}
-                placeholder="+27 11 000 0001" />
+              <input
+                className={inputCls}
+                value={form.fax}
+                onChange={str("fax")}
+                placeholder="+27 11 000 0001"
+              />
             </Field>
           </div>
 
@@ -278,20 +471,36 @@ export default function CreateClientModal({
           <SectionHeader title="Address" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Field label="Address Line 1">
-              <input className={inputCls} value={form.address1} onChange={str("address1")}
-                placeholder="Street / PO Box" />
+              <input
+                className={inputCls}
+                value={form.address1}
+                onChange={str("address1")}
+                placeholder="Street / PO Box"
+              />
             </Field>
             <Field label="Address Line 2">
-              <input className={inputCls} value={form.address2} onChange={str("address2")}
-                placeholder="Suburb" />
+              <input
+                className={inputCls}
+                value={form.address2}
+                onChange={str("address2")}
+                placeholder="Suburb"
+              />
             </Field>
             <Field label="Address Line 3">
-              <input className={inputCls} value={form.address3} onChange={str("address3")}
-                placeholder="City" />
+              <input
+                className={inputCls}
+                value={form.address3}
+                onChange={str("address3")}
+                placeholder="City"
+              />
             </Field>
             <Field label="Address Line 4">
-              <input className={inputCls} value={form.address4} onChange={str("address4")}
-                placeholder="Postal code" />
+              <input
+                className={inputCls}
+                value={form.address4}
+                onChange={str("address4")}
+                placeholder="Postal code"
+              />
             </Field>
           </div>
 
@@ -299,36 +508,70 @@ export default function CreateClientModal({
           <SectionHeader title="Account Settings" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <Field label="Account Type">
-              <input className={inputCls} type="number" value={form.accType}
-                onChange={num("accType")} min={0} />
+              <input
+                className={inputCls}
+                type="number"
+                value={form.accType}
+                onChange={num("accType")}
+                min={0}
+              />
             </Field>
             <Field label="Category">
-              <input className={inputCls} value={form.category} onChange={str("category")}
-                placeholder="Category code" />
+              <input
+                className={inputCls}
+                value={form.category}
+                onChange={str("category")}
+                placeholder="Category code"
+              />
             </Field>
             <Field label="Terms">
-              <input className={inputCls} value={form.terms} onChange={str("terms")}
-                placeholder="Payment terms" />
+              <input
+                className={inputCls}
+                value={form.terms}
+                onChange={str("terms")}
+                placeholder="Payment terms"
+              />
             </Field>
             <Field label="Rep Code">
-              <input className={inputCls} value={form.repCode} onChange={str("repCode")}
-                placeholder="Sales rep" />
+              <input
+                className={inputCls}
+                value={form.repCode}
+                onChange={str("repCode")}
+                placeholder="Sales rep"
+              />
             </Field>
             <Field label="Area Code">
-              <input className={inputCls} value={form.areaCode} onChange={str("areaCode")}
-                placeholder="Area" />
+              <input
+                className={inputCls}
+                value={form.areaCode}
+                onChange={str("areaCode")}
+                placeholder="Area"
+              />
             </Field>
             <Field label="Branch Code">
-              <input className={inputCls} value={form.branchCode} onChange={str("branchCode")}
-                placeholder="Branch" />
+              <input
+                className={inputCls}
+                value={form.branchCode}
+                onChange={str("branchCode")}
+                placeholder="Branch"
+              />
             </Field>
             <Field label="Stock Price Code">
-              <input className={inputCls} value={form.stockPrc} onChange={str("stockPrc")}
-                placeholder="Price level" />
+              <input
+                className={inputCls}
+                value={form.stockPrc}
+                onChange={str("stockPrc")}
+                placeholder="Price level"
+              />
             </Field>
             <Field label="Currency">
-              <input className={inputCls} type="number" value={form.currency}
-                onChange={num("currency")} min={0} />
+              <input
+                className={inputCls}
+                type="number"
+                value={form.currency}
+                onChange={num("currency")}
+                min={0}
+              />
             </Field>
           </div>
 
@@ -336,16 +579,36 @@ export default function CreateClientModal({
           <SectionHeader title="Financial" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <Field label="Credit Limit (R)">
-              <input className={inputCls} type="number" value={form.creditLimit}
-                onChange={num("creditLimit")} min={0} step={0.01} />
+              <input
+                className={inputCls}
+                type="number"
+                value={form.creditLimit}
+                onChange={num("creditLimit")}
+                min={0}
+                step={0.01}
+              />
             </Field>
             <Field label="Trade Disc (%)">
-              <input className={inputCls} type="number" value={form.tradeDisc}
-                onChange={num("tradeDisc")} min={0} max={100} step={0.01} />
+              <input
+                className={inputCls}
+                type="number"
+                value={form.tradeDisc}
+                onChange={num("tradeDisc")}
+                min={0}
+                max={100}
+                step={0.01}
+              />
             </Field>
             <Field label="Settle Disc (%)">
-              <input className={inputCls} type="number" value={form.settleDisc}
-                onChange={num("settleDisc")} min={0} max={100} step={0.01} />
+              <input
+                className={inputCls}
+                type="number"
+                value={form.settleDisc}
+                onChange={num("settleDisc")}
+                min={0}
+                max={100}
+                step={0.01}
+              />
             </Field>
           </div>
 
@@ -353,42 +616,94 @@ export default function CreateClientModal({
           <SectionHeader title="Banking" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <Field label="Bank">
-              <input className={inputCls} value={form.bank} onChange={str("bank")}
-                placeholder="Bank name" />
+              <input
+                className={inputCls}
+                value={form.bank}
+                onChange={str("bank")}
+                placeholder="Bank name"
+              />
             </Field>
             <Field label="Branch Code">
-              <input className={inputCls} value={form.bankCode} onChange={str("bankCode")}
-                placeholder="Branch code" />
+              <input
+                className={inputCls}
+                value={form.bankCode}
+                onChange={str("bankCode")}
+                placeholder="Branch code"
+              />
             </Field>
             <Field label="Account No">
-              <input className={inputCls} value={form.bankAccNo} onChange={str("bankAccNo")}
-                placeholder="Bank account number" />
+              <input
+                className={inputCls}
+                value={form.bankAccNo}
+                onChange={str("bankAccNo")}
+                placeholder="Bank account number"
+              />
             </Field>
           </div>
 
           {/* Preferences */}
           <SectionHeader title="Preferences" />
           <div className="grid grid-cols-4 gap-x-4 gap-y-3">
-            <Check label="Active"        checked={form.activeYN}   onChange={chk("activeYN")} />
-            <Check label="Pay VAT"       checked={form.payVatYN}   onChange={chk("payVatYN")} />
-            <Check label="Statements"    checked={form.stmtsYN}    onChange={chk("stmtsYN")} />
-            <Check label="No Hold"       checked={form.noHoldYN}   onChange={chk("noHoldYN")} />
-            <Check label="OD Interest"   checked={form.odIntYN}    onChange={chk("odIntYN")} />
-            <Check label="Orders"        checked={form.ordersYN}   onChange={chk("ordersYN")} />
-            <Check label="Labels"        checked={form.labelsYN}   onChange={chk("labelsYN")} />
-            <Check label="Excl/Incl"     checked={form.exclInclYN} onChange={chk("exclInclYN")} />
+            <Check
+              label="Active"
+              checked={form.activeYN}
+              onChange={chk("activeYN")}
+            />
+            <Check
+              label="Pay VAT"
+              checked={form.payVatYN}
+              onChange={chk("payVatYN")}
+            />
+            <Check
+              label="Statements"
+              checked={form.stmtsYN}
+              onChange={chk("stmtsYN")}
+            />
+            <Check
+              label="No Hold"
+              checked={form.noHoldYN}
+              onChange={chk("noHoldYN")}
+            />
+            <Check
+              label="OD Interest"
+              checked={form.odIntYN}
+              onChange={chk("odIntYN")}
+            />
+            <Check
+              label="Orders"
+              checked={form.ordersYN}
+              onChange={chk("ordersYN")}
+            />
+            <Check
+              label="Labels"
+              checked={form.labelsYN}
+              onChange={chk("labelsYN")}
+            />
+            <Check
+              label="Excl/Incl"
+              checked={form.exclInclYN}
+              onChange={chk("exclInclYN")}
+            />
           </div>
 
           {/* Notes */}
           <SectionHeader title="Other" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Field label="GST / VAT Number">
-              <input className={inputCls} value={form.gstNumber} onChange={str("gstNumber")}
-                placeholder="Tax registration number" />
+              <input
+                className={inputCls}
+                value={form.gstNumber}
+                onChange={str("gstNumber")}
+                placeholder="Tax registration number"
+              />
             </Field>
             <Field label="Vendor No">
-              <input className={inputCls} value={form.vendorNo} onChange={str("vendorNo")}
-                placeholder="Vendor reference" />
+              <input
+                className={inputCls}
+                value={form.vendorNo}
+                onChange={str("vendorNo")}
+                placeholder="Vendor reference"
+              />
             </Field>
             <div className="col-span-2">
               <Field label="Notes">
@@ -402,7 +717,6 @@ export default function CreateClientModal({
               </Field>
             </div>
           </div>
-
         </div>
 
         {/* Footer */}
@@ -430,7 +744,6 @@ export default function CreateClientModal({
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

@@ -456,6 +456,7 @@ export default function FinanceClient() {
       <CreateClientModal
         isOpen={showCreate}
         companyNr={companyNr}
+        existingAccNos={customers.map((c) => c.accNo)}
         onClose={() => setShowCreate(false)}
         onCreated={() => setFetchKey((k) => k + 1)}
       />
