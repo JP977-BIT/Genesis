@@ -11,23 +11,24 @@ import {
   ChevronLeft,
   Pin,
   PinOff,
-  Plus,
 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, hasPlus: false },
-  { label: "Clients", icon: Users, hasPlus: true },
-  { label: "Suppliers", icon: Truck, hasPlus: true },
-  { label: "Inventory", icon: Package, hasPlus: true },
-  { label: "Admin", icon: ShieldCheck, hasPlus: true },
-  { label: "Subsidiary", icon: GitBranch, hasPlus: false },
-  { label: "Modules", icon: Grid2X2, hasPlus: true },
+  { label: "Dashboard", icon: LayoutDashboard },
+  { label: "Clients", icon: Users },
+  { label: "Suppliers", icon: Truck },
+  { label: "Inventory", icon: Package },
+  { label: "Admin", icon: ShieldCheck },
+  { label: "Subsidiary", icon: GitBranch },
+  { label: "Modules", icon: Grid2X2 },
 ];
 
 const SIDEBAR_BG = "#1e2d45";
-const SIDEBAR_ACTIVE = "#2a3d5e";
+const SIDEBAR_ACTIVE = "rgba(45, 212, 191, 0.14)";
+const SIDEBAR_ACTIVE_RING = "rgba(94, 234, 212, 0.25)";
 const SIDEBAR_HOVER = "#263653";
 const SIDEBAR_BORDER = "#2c3f5c";
+const SIDEBAR_ACCENT = "#5eead4";
 
 interface SidebarProps {
   isExpanded: boolean;
@@ -92,8 +93,17 @@ const FinanceSidebar = memo(function FinanceSidebar({
         className="flex items-center gap-3 px-3 py-3 shrink-0"
         style={{ borderBottom: `1px solid ${SIDEBAR_BORDER}` }}
       >
-        <div className="w-8 h-8 rounded-full bg-[#1B3D35] flex items-center justify-center shrink-0">
-          <span className="text-white text-[9px] font-semibold tracking-widest">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+          style={{
+            backgroundColor: SIDEBAR_ACTIVE,
+            border: `1px solid ${SIDEBAR_ACTIVE_RING}`,
+          }}
+        >
+          <span
+            className="text-[9px] font-semibold tracking-widest"
+            style={{ color: SIDEBAR_ACCENT }}
+          >
             GEN
           </span>
         </div>
@@ -109,8 +119,8 @@ const FinanceSidebar = memo(function FinanceSidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1">
-        {navItems.map(({ label, icon: Icon, hasPlus }) => {
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
+        {navItems.map(({ label, icon: Icon }) => {
           const isActive = activeItem === label;
           return (
             <button
@@ -119,13 +129,13 @@ const FinanceSidebar = memo(function FinanceSidebar({
                 if (label === "Dashboard") router.push("/Finance");
                 setActiveItem(label);
               }}
-              className="w-full flex items-center px-4 py-2 text-sm whitespace-nowrap transition-colors"
+              className="w-full flex items-center px-3 py-2 mb-1 text-sm whitespace-nowrap transition-colors rounded-lg"
               style={{
                 backgroundColor: isActive ? SIDEBAR_ACTIVE : "transparent",
-                color: isActive ? "#ffffff" : "#94a3b8",
-                borderLeft: isActive
-                  ? "2px solid #5b8dee"
-                  : "2px solid transparent",
+                color: isActive ? SIDEBAR_ACCENT : "#94a3b8",
+                border: isActive
+                  ? `1px solid ${SIDEBAR_ACTIVE_RING}`
+                  : "1px solid transparent",
               }}
               onMouseEnter={(e) => {
                 if (!isActive)
@@ -148,9 +158,6 @@ const FinanceSidebar = memo(function FinanceSidebar({
               >
                 {label}
               </span>
-              {hasPlus && isExpanded && (
-                <Plus size={13} className="shrink-0 opacity-50" />
-              )}
             </button>
           );
         })}

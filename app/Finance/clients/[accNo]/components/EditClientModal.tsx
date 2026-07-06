@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Trash2 } from "lucide-react";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const inputCls =
-  "w-full px-3 py-1.5 text-sm border border-[#c6c6cd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#1B3D35]/20 focus:border-[#1B3D35] transition font-body bg-white disabled:bg-[#f0f2f8] disabled:text-[#76777d] disabled:cursor-not-allowed";
+  "w-full px-3 py-1.5 text-sm border border-[#c6c6cd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0d9488]/20 focus:border-[#0d9488] transition font-body bg-white disabled:bg-[#f0f2f8] disabled:text-[#76777d] disabled:cursor-not-allowed";
 
 const labelCls =
   "block text-[11px] font-semibold uppercase tracking-[0.05em] text-[#45464d] mb-1";
@@ -52,12 +52,46 @@ function Check({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-3.5 h-3.5 rounded border-[#c6c6cd] accent-[#1B3D35] cursor-pointer"
+        className="w-3.5 h-3.5 rounded border-[#c6c6cd] accent-[#0d9488] cursor-pointer"
       />
       <span className="text-[12px] text-[#45464d]">{label}</span>
     </label>
   );
 }
+
+function Select({
+  value,
+  onChange,
+  options,
+  placeholder = "Select…",
+}: {
+  value: string | number;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: { value: string | number; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <select
+      className={`${inputCls} cursor-pointer`}
+      value={value}
+      onChange={onChange}
+    >
+      <option value="" disabled>
+        {placeholder}
+      </option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: 0, label: "Open item" },
+  { value: 1, label: "Balance forward account" },
+];
 
 // ── Form state ────────────────────────────────────────────────────────────────
 interface FormState {
@@ -173,6 +207,9 @@ interface EditClientModalProps {
   rawCustomer: Record<string, unknown> | null;
   onClose: () => void;
   onUpdated: () => void;
+  // Called after a successful delete — the parent should navigate away since
+  // the client this page shows no longer exists.
+  onDeleted: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -182,26 +219,42 @@ export default function EditClientModal({
   rawCustomer,
   onClose,
   onUpdated,
+  onDeleted,
 }: EditClientModalProps) {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Delete confirmation flow: the danger zone starts collapsed; opening it
+  // reveals a type-the-account-number confirmation before delete is enabled.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Re-initialise the form every time the modal opens or rawCustomer changes.
   useEffect(() => {
     if (isOpen && rawCustomer) {
       setForm(toFormState(rawCustomer));
       setError(null);
+      setConfirmingDelete(false);
+      setDeleteConfirmText("");
+      setDeleteError(null);
     }
   }, [isOpen, rawCustomer]);
 
   const str =
     (field: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >
+    ) =>
       setForm((p) => (p ? { ...p, [field]: e.target.value } : p));
 
   const num =
-    (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    (field: keyof FormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((p) =>
         p ? { ...p, [field]: parseFloat(e.target.value) || 0 } : p,
       );
@@ -249,7 +302,38 @@ export default function EditClientModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!form || !companyNr || !rawCustomer) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      // Revelation's delete endpoint expects the full customer object, same
+      // shape as add/update — send the raw record as fetched, untouched by
+      // any unsaved form edits.
+      const res = await fetch("/api/customers/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyNr, customer: rawCustomer }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        onDeleted();
+        onClose();
+      } else {
+        setDeleteError(result.message ?? "Failed to delete client");
+      }
+    } catch {
+      setDeleteError("Network error — could not delete client");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!isOpen || !form) return null;
+
+  const deleteConfirmed = deleteConfirmText.trim() === form.accNo;
 
   return (
     <div
@@ -404,69 +488,67 @@ export default function EditClientModal({
           <SectionHeader title="Account Settings" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <Field label="Account Type">
-              <input
-                className={inputCls}
-                type="number"
+              <Select
                 value={form.accType}
                 onChange={num("accType")}
-                min={0}
+                options={ACCOUNT_TYPE_OPTIONS}
+                placeholder="Select account type"
               />
             </Field>
             <Field label="Category">
-              <input
-                className={inputCls}
+              <Select
                 value={form.category}
                 onChange={str("category")}
-                placeholder="Category code"
+                options={[]}
+                placeholder="Select category"
               />
             </Field>
             <Field label="Terms">
-              <input
-                className={inputCls}
+              <Select
                 value={form.terms}
                 onChange={str("terms")}
-                placeholder="Payment terms"
+                options={[]}
+                placeholder="Select terms"
               />
             </Field>
             <Field label="Rep Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.repCode}
                 onChange={str("repCode")}
-                placeholder="Sales rep"
+                options={[]}
+                placeholder="Select sales rep"
               />
             </Field>
             <Field label="Area Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.areaCode}
                 onChange={str("areaCode")}
-                placeholder="Area"
+                options={[]}
+                placeholder="Select area"
               />
             </Field>
             <Field label="Branch Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.branchCode}
                 onChange={str("branchCode")}
-                placeholder="Branch"
+                options={[]}
+                placeholder="Select branch"
               />
             </Field>
             <Field label="Stock Price Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.stockPrc}
                 onChange={str("stockPrc")}
-                placeholder="Price level"
+                options={[]}
+                placeholder="Select price level"
               />
             </Field>
             <Field label="Currency">
-              <input
-                className={inputCls}
-                type="number"
+              <Select
                 value={form.currency}
                 onChange={num("currency")}
-                min={0}
+                options={[]}
+                placeholder="Select currency"
               />
             </Field>
           </div>
@@ -613,6 +695,85 @@ export default function EditClientModal({
               </Field>
             </div>
           </div>
+
+          {/* Danger Zone */}
+          <div className="flex items-center gap-3 mb-3 mt-8">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#ba1a1a] shrink-0">
+              Danger Zone
+            </p>
+            <div className="flex-1 h-px bg-[#ba1a1a]/30" />
+          </div>
+          <div className="border border-[#ba1a1a]/40 rounded-lg p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0b1c30]">
+                  Delete this client
+                </p>
+                <p className="text-[12px] text-[#76777d] mt-0.5">
+                  Permanently removes{" "}
+                  <span className="font-medium text-[#45464d]">
+                    {form.name || "this client"}
+                  </span>{" "}
+                  and its account details. This action cannot be undone.
+                </p>
+              </div>
+              {!confirmingDelete && (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  disabled={saving || deleting}
+                  className="h-8 px-4 shrink-0 rounded-md border border-[#ba1a1a]/50 text-[13px] font-medium text-[#ba1a1a] hover:bg-[#ba1a1a] hover:text-white transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  Delete Client
+                </button>
+              )}
+            </div>
+
+            {confirmingDelete && (
+              <div className="mt-4 pt-4 border-t border-[#ba1a1a]/20">
+                <label className={labelCls}>
+                  Type{" "}
+                  <span className="font-mono normal-case text-[#ba1a1a]">
+                    {form.accNo}
+                  </span>{" "}
+                  to confirm
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className={`${inputCls} max-w-[220px] focus:ring-[#ba1a1a]/20 focus:border-[#ba1a1a]`}
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Account number"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleDelete}
+                    disabled={!deleteConfirmed || deleting}
+                    className="h-8 px-4 shrink-0 rounded-md bg-[#ba1a1a] text-white text-[13px] font-medium hover:bg-[#9a1515] transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {deleting && <Loader2 size={13} className="animate-spin" />}
+                    {deleting ? "Deleting…" : "Confirm Delete"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                      setDeleteConfirmText("");
+                      setDeleteError(null);
+                    }}
+                    disabled={deleting}
+                    className="h-8 px-3 shrink-0 rounded-md text-[13px] font-medium text-[#45464d] hover:bg-[#f0f2f8] transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {deleteError && (
+                  <p className="text-[12px] text-[#ba1a1a] mt-2">
+                    {deleteError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -633,7 +794,7 @@ export default function EditClientModal({
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="h-8 px-5 rounded-md bg-[#1B3D35] text-white text-[13px] font-medium hover:bg-[#16332c] transition flex items-center gap-2 disabled:opacity-60"
+              className="h-8 px-5 rounded-md bg-[#0d9488] text-white text-[13px] font-medium hover:bg-[#0b7c72] transition flex items-center gap-2 disabled:opacity-60"
             >
               {saving && <Loader2 size={13} className="animate-spin" />}
               {saving ? "Saving…" : "Save Changes"}

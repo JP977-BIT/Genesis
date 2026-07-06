@@ -184,8 +184,8 @@ export default function HomePage() {
                 className={`w-full flex items-center px-4 py-2 text-sm transition-colors whitespace-nowrap
     ${
       activeItem === label
-        ? "bg-[#eaf2f0] text-[#1B3D35] font-medium border-l-2 border-[#1B3D35]"
-        : "text-gray-600 hover:bg-gray-50 hover:text-[#1B3D35] border-l-2 border-transparent"
+        ? "bg-[#e8f5f3] text-[#0f766e] font-medium border-l-2 border-[#0d9488]"
+        : "text-gray-600 hover:bg-gray-50 hover:text-[#0f766e] border-l-2 border-transparent"
     }`}
               >
                 <Icon size={15} className="shrink-0" />
@@ -215,8 +215,8 @@ export default function HomePage() {
                 className={`w-full flex items-center px-4 py-2 text-sm transition-colors whitespace-nowrap
                   ${
                     activeItem === label
-                      ? "bg-[#eaf2f0] text-[#1B3D35] font-medium border-l-2 border-[#1B3D35]"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1B3D35] border-l-2 border-transparent"
+                      ? "bg-[#e8f5f3] text-[#0f766e] font-medium border-l-2 border-[#0d9488]"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-[#0f766e] border-l-2 border-transparent"
                   }`}
               >
                 <Icon size={15} className="shrink-0" />
@@ -240,10 +240,10 @@ export default function HomePage() {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Header */}
           <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-end px-4 gap-3 shrink-0">
-            <button className="text-gray-500 hover:text-[#1B3D35] transition">
+            <button className="text-gray-500 hover:text-[#0f766e] transition">
               <User size={18} />
             </button>
-            <button className="text-gray-500 hover:text-[#1B3D35] transition">
+            <button className="text-gray-500 hover:text-[#0f766e] transition">
               <MessageCircle size={18} />
             </button>
           </header>
@@ -281,13 +281,13 @@ export default function HomePage() {
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleSignOut}
-                className="w-full bg-[#1B3D35] hover:bg-[#15302a] text-white font-medium py-3 rounded-lg transition duration-200"
+                className="w-full bg-[#0d9488] hover:bg-[#0b7c72] text-white font-medium py-3 rounded-lg transition duration-200"
               >
                 Yes, log out
               </button>
               <button
                 onClick={() => setShowLogOutModal(false)}
-                className="text-sm text-gray-500 hover:text-[#1B3D35] transition text-center"
+                className="text-sm text-gray-500 hover:text-[#0f766e] transition text-center"
               >
                 Cancel
               </button>

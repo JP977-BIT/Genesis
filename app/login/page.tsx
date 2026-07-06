@@ -64,7 +64,7 @@ export default function LoginPage() {
               placeholder="you@revelation.co.za"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1B3D35] focus:border-transparent transition"
+              className="border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0d9488] focus:border-transparent transition"
             />
           </div>
 
@@ -83,7 +83,7 @@ export default function LoginPage() {
                 placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1B3D35] focus:border-transparent transition"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0d9488] focus:border-transparent transition"
               />
               <button
                 type="button"
@@ -102,7 +102,7 @@ export default function LoginPage() {
           {/* Sign In Button */}
           <button
             type="submit"
-            className="mt-2 w-full bg-[#1B3D35] hover:bg-[#15302a] text-white font-medium py-3 rounded-lg transition duration-200"
+            className="mt-2 w-full bg-[#0d9488] hover:bg-[#0b7c72] text-white font-medium py-3 rounded-lg transition duration-200"
           >
             Sign in
           </button>

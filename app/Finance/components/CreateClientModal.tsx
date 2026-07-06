@@ -5,7 +5,7 @@ import { X, Loader2 } from "lucide-react";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const inputCls =
-  "w-full px-3 py-1.5 text-sm border border-[#c6c6cd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#1B3D35]/20 focus:border-[#1B3D35] transition font-body bg-white";
+  "w-full px-3 py-1.5 text-sm border border-[#c6c6cd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0d9488]/20 focus:border-[#0d9488] transition font-body bg-white";
 
 const labelCls =
   "block text-[11px] font-semibold uppercase tracking-[0.05em] text-[#45464d] mb-1";
@@ -57,12 +57,46 @@ function Check({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-3.5 h-3.5 rounded border-[#c6c6cd] accent-[#1B3D35] cursor-pointer"
+        className="w-3.5 h-3.5 rounded border-[#c6c6cd] accent-[#0d9488] cursor-pointer"
       />
       <span className="text-[12px] text-[#45464d]">{label}</span>
     </label>
   );
 }
+
+function Select({
+  value,
+  onChange,
+  options,
+  placeholder = "Select…",
+}: {
+  value: string | number;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: { value: string | number; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <select
+      className={`${inputCls} cursor-pointer`}
+      value={value}
+      onChange={onChange}
+    >
+      <option value="" disabled>
+        {placeholder}
+      </option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: 0, label: "Open item" },
+  { value: 1, label: "Balance forward account" },
+];
 
 // ── Form state ────────────────────────────────────────────────────────────────
 interface FormState {
@@ -294,11 +328,16 @@ export default function CreateClientModal({
 
   const str =
     (field: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >
+    ) =>
       setForm((p) => ({ ...p, [field]: e.target.value }));
 
   const num =
-    (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    (field: keyof FormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((p) => ({ ...p, [field]: parseFloat(e.target.value) || 0 }));
 
   const chk = (field: keyof FormState) => (v: boolean) =>
@@ -508,69 +547,67 @@ export default function CreateClientModal({
           <SectionHeader title="Account Settings" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <Field label="Account Type">
-              <input
-                className={inputCls}
-                type="number"
+              <Select
                 value={form.accType}
                 onChange={num("accType")}
-                min={0}
+                options={ACCOUNT_TYPE_OPTIONS}
+                placeholder="Select account type"
               />
             </Field>
             <Field label="Category">
-              <input
-                className={inputCls}
+              <Select
                 value={form.category}
                 onChange={str("category")}
-                placeholder="Category code"
+                options={[]}
+                placeholder="Select category"
               />
             </Field>
             <Field label="Terms">
-              <input
-                className={inputCls}
+              <Select
                 value={form.terms}
                 onChange={str("terms")}
-                placeholder="Payment terms"
+                options={[]}
+                placeholder="Select terms"
               />
             </Field>
             <Field label="Rep Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.repCode}
                 onChange={str("repCode")}
-                placeholder="Sales rep"
+                options={[]}
+                placeholder="Select sales rep"
               />
             </Field>
             <Field label="Area Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.areaCode}
                 onChange={str("areaCode")}
-                placeholder="Area"
+                options={[]}
+                placeholder="Select area"
               />
             </Field>
             <Field label="Branch Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.branchCode}
                 onChange={str("branchCode")}
-                placeholder="Branch"
+                options={[]}
+                placeholder="Select branch"
               />
             </Field>
             <Field label="Stock Price Code">
-              <input
-                className={inputCls}
+              <Select
                 value={form.stockPrc}
                 onChange={str("stockPrc")}
-                placeholder="Price level"
+                options={[]}
+                placeholder="Select price level"
               />
             </Field>
             <Field label="Currency">
-              <input
-                className={inputCls}
-                type="number"
+              <Select
                 value={form.currency}
                 onChange={num("currency")}
-                min={0}
+                options={[]}
+                placeholder="Select currency"
               />
             </Field>
           </div>
@@ -737,7 +774,7 @@ export default function CreateClientModal({
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="h-8 px-5 rounded-md bg-[#1B3D35] text-white text-[13px] font-medium hover:bg-[#16332c] transition flex items-center gap-2 disabled:opacity-60"
+              className="h-8 px-5 rounded-md bg-[#0d9488] text-white text-[13px] font-medium hover:bg-[#0b7c72] transition flex items-center gap-2 disabled:opacity-60"
             >
               {saving && <Loader2 size={13} className="animate-spin" />}
               {saving ? "Creating…" : "Create Client"}

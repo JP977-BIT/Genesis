@@ -65,7 +65,7 @@ function SortableHeader({
       <button
         type="button"
         onClick={() => onSort(column)}
-        className={`flex items-center gap-1 w-full uppercase hover:text-[#1B3D35] transition ${buttonAlign}`}
+        className={`flex items-center gap-1 w-full uppercase hover:text-[#0f766e] transition ${buttonAlign}`}
       >
         <span>{label}</span>
         {isActive ? (
@@ -219,8 +219,14 @@ export default function FinanceClient() {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#1B3D35] flex items-center justify-center">
-                <span className="text-white text-[9px] font-semibold tracking-widest">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{
+                  backgroundColor: "rgba(45, 212, 191, 0.14)",
+                  border: "1px solid rgba(13, 148, 136, 0.4)",
+                }}
+              >
+                <span className="text-[9px] font-semibold tracking-widest text-[#0d9488]">
                   GEN
                 </span>
               </div>
@@ -232,10 +238,10 @@ export default function FinanceClient() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button className="text-gray-500 hover:text-[#1B3D35] transition">
+              <button className="text-gray-500 hover:text-[#0f766e] transition">
                 <User size={18} />
               </button>
-              <button className="text-gray-500 hover:text-[#1B3D35] transition">
+              <button className="text-gray-500 hover:text-[#0f766e] transition">
                 <MessageCircle size={18} />
               </button>
             </div>
@@ -257,7 +263,7 @@ export default function FinanceClient() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowCreate(true)}
-                      className="h-7 px-3 rounded-md bg-[#1B3D35] text-white text-[12px] font-medium hover:bg-[#16332c] transition shrink-0"
+                      className="h-7 px-3 rounded-md bg-[#0d9488] text-white text-[12px] font-medium hover:bg-[#0b7c72] transition shrink-0"
                     >
                       + New Client
                     </button>
@@ -272,7 +278,7 @@ export default function FinanceClient() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search clients..."
-                        className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1B3D35]/20 focus:border-[#1B3D35] transition"
+                        className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0d9488]/20 focus:border-[#0d9488] transition"
                       />
                     </div>
                   </div>
@@ -388,7 +394,7 @@ export default function FinanceClient() {
                                   }
                                   className="hover:bg-gray-50 transition border-b border-gray-100 cursor-pointer"
                                 >
-                                  <td className="px-5 py-3 font-mono text-xs text-[#1B3D35] truncate">
+                                  <td className="px-5 py-3 font-mono text-xs text-[#0f766e] truncate">
                                     {customer.accNo}
                                   </td>
                                   <td className="px-5 py-3 font-medium text-gray-800 truncate">

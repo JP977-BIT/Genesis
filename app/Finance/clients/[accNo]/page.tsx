@@ -84,6 +84,25 @@ function loadSectionOrder(): string[] {
   return [...SECTION_IDS];
 }
 
+// ── Nav dock position (persisted so the user's chosen dock sticks) ─────────
+const DOCK_POSITION_KEY = "genesis-client-nav-dock";
+type DockPosition = "left" | "right" | "top" | "bottom";
+
+function loadDockPosition(): DockPosition {
+  try {
+    const saved = localStorage.getItem(DOCK_POSITION_KEY);
+    if (
+      saved === "left" ||
+      saved === "right" ||
+      saved === "top" ||
+      saved === "bottom"
+    ) {
+      return saved;
+    }
+  } catch {}
+  return "top";
+}
+
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Customer {
   accNo: string;
@@ -384,10 +403,10 @@ export default function ClientDetailPage() {
     });
   }, []);
 
-  // ── Dockable nav panel ──
-  const [dockPosition, setDockPosition] = useState<
-    "left" | "right" | "top" | "bottom"
-  >("left");
+  // ── Dockable nav panel — defaults to top (tab formation), persisted ──
+  const [dockPosition, setDockPosition] = useState<DockPosition>(() =>
+    typeof window !== "undefined" ? loadDockPosition() : "top",
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [snapTarget, setSnapTarget] = useState<
@@ -439,7 +458,10 @@ export default function ClientDetailPage() {
     };
 
     const onUp = () => {
-      if (snapTargetRef.current) setDockPosition(snapTargetRef.current);
+      if (snapTargetRef.current) {
+        setDockPosition(snapTargetRef.current);
+        localStorage.setItem(DOCK_POSITION_KEY, snapTargetRef.current);
+      }
       setIsDragging(false);
       setSnapTarget(null);
       snapTargetRef.current = null;
@@ -962,6 +984,7 @@ export default function ClientDetailPage() {
                 setCustomerFetchKey((k) => k + 1);
                 setLoading(true);
               }}
+              onDeleted={() => router.push("/Finance?view=Clients")}
             />
 
             {/* ── Footer ── */}
