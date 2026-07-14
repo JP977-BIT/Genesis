@@ -31,6 +31,7 @@ import {
   Edit3,
   GripHorizontal,
   Info,
+  MapPin,
   MessageSquare,
   Phone,
   Plus,
@@ -121,6 +122,12 @@ interface Customer {
   creditLimit: number;
   balance: number;
   activeYN: boolean;
+  accType: number;
+  terms: string;
+  areaCode: string;
+  branchCode: string;
+  stockPrc: string;
+  currency: number;
 }
 
 interface AgeAnalysis {
@@ -529,13 +536,18 @@ export default function ClientDetailPage() {
                 </section>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                      Contact Information
-                    </h3>
-                    <div className="flex flex-col flex-1">
+                    <div className="flex items-center gap-3 pb-4 border-b border-[#c6c6cd]/40">
+                      <div className="w-9 h-9 rounded-lg bg-[#0d9488]/10 border border-[#0d9488]/20 flex items-center justify-center text-[#0d9488] shrink-0">
+                        <User size={16} />
+                      </div>
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Contact information
+                      </h3>
+                    </div>
+                    <div className="flex flex-col flex-1 pt-1">
                       {[
                         {
-                          label: "Contact Person",
+                          label: "Contact person",
                           value: customer!.contact || "—",
                           icons: ["phone"] as const,
                         },
@@ -560,8 +572,10 @@ export default function ClientDetailPage() {
                           className="flex items-center justify-between py-3 border-b border-[#c6c6cd]/40 last:border-0"
                         >
                           <div>
-                            <p className={labelCls}>{row.label}</p>
-                            <p className="text-[14px] text-[#0b1c30] mt-0.5">
+                            <p className="text-[12px] text-[#76777d]">
+                              {row.label}
+                            </p>
+                            <p className="text-[15px] font-semibold text-[#0b1c30] mt-0.5">
                               {row.value}
                             </p>
                           </div>
@@ -584,63 +598,91 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
                   <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-4">
-                      Financial &amp; Admin
-                    </h3>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+                    <div className="flex items-center gap-3 pb-4 border-b border-[#c6c6cd]/40">
+                      <div className="w-9 h-9 rounded-lg bg-[#0d9488]/10 border border-[#0d9488]/20 flex items-center justify-center text-[#0d9488] shrink-0">
+                        <CreditCard size={16} />
+                      </div>
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Financial &amp; admin
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-4 mb-6">
                       <div>
-                        <p className={`${labelCls} mb-1`}>VAT Number</p>
-                        <p className="text-[14px] text-[#0b1c30]">
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          VAT number
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
                           {customer!.gstNumber || "—"}
                         </p>
                       </div>
                       <div>
-                        <p className={`${labelCls} mb-1`}>Credit Limit</p>
-                        <p className="text-[14px] text-[#0b1c30]">
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Credit limit
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
                           {customer!.creditLimit.toLocaleString("en-ZA", {
                             minimumFractionDigits: 2,
                           })}
                         </p>
                       </div>
                       <div>
-                        <p className={`${labelCls} mb-1`}>Trade Discount</p>
-                        <p className="text-[14px] text-[#0b1c30]">—</p>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Trade discount
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          —
+                        </p>
                       </div>
                       <div>
-                        <p className={`${labelCls} mb-1`}>Tax Status</p>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Tax status
+                        </p>
                         <span className="inline-flex items-center text-[11px] font-semibold text-[#009668] bg-[#009668]/10 border border-[#009668]/20 px-2.5 py-0.5 rounded-full">
                           Compliant
                         </span>
                       </div>
                     </div>
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#76777d] mb-3">
-                        CLASSIFICATION
+                      <p className="text-[12px] text-[#76777d] mb-3">
+                        Classification
                       </p>
                       <div className="grid grid-cols-3 gap-x-4">
                         <div>
-                          <p className={`${labelCls} mb-1`}>Rep Code</p>
-                          <p className="text-[14px] text-[#0b1c30]">
+                          <p className="text-[12px] text-[#76777d] mb-0.5">
+                            Rep code
+                          </p>
+                          <p className="text-[15px] font-semibold text-[#0b1c30]">
                             {customer!.repCode || "—"}
                           </p>
                         </div>
                         <div>
-                          <p className={`${labelCls} mb-1`}>Area Code</p>
-                          <p className="text-[14px] text-[#0b1c30]">
+                          <p className="text-[12px] text-[#76777d] mb-0.5">
+                            Area code
+                          </p>
+                          <p className="text-[15px] font-semibold text-[#0b1c30]">
                             {customer!.category || "—"}
                           </p>
                         </div>
                         <div>
-                          <p className={`${labelCls} mb-1`}>Terms</p>
-                          <p className="text-[14px] text-[#0b1c30]">30 Days</p>
+                          <p className="text-[12px] text-[#76777d] mb-0.5">
+                            Terms
+                          </p>
+                          <p className="text-[15px] font-semibold text-[#0b1c30]">
+                            30 Days
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5 flex flex-col">
-                    <h3 className="text-[15px] font-semibold text-[#0b1c30] mb-3">
-                      Internal Notes
-                    </h3>
+                    <div className="flex items-center gap-3 pb-4 mb-3 border-b border-[#c6c6cd]/40">
+                      <div className="w-9 h-9 rounded-lg bg-[#0d9488]/10 border border-[#0d9488]/20 flex items-center justify-center text-[#0d9488] shrink-0">
+                        <Edit3 size={16} />
+                      </div>
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Internal notes
+                      </h3>
+                    </div>
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -659,6 +701,128 @@ export default function ClientDetailPage() {
                       >
                         Save Notes
                       </button>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5">
+                    <div className="flex items-center gap-3 pb-4 border-b border-[#c6c6cd]/40">
+                      <div className="w-9 h-9 rounded-lg bg-[#0d9488]/10 border border-[#0d9488]/20 flex items-center justify-center text-[#0d9488] shrink-0">
+                        <MapPin size={16} />
+                      </div>
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Physical address
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-4">
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Street / PO box
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.address1?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Suburb
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.address2?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          City
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.address3?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Postal code
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.address4?.trim() || "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] p-5">
+                    <div className="flex items-center gap-3 pb-4 border-b border-[#c6c6cd]/40">
+                      <div className="w-9 h-9 rounded-lg bg-[#0d9488]/10 border border-[#0d9488]/20 flex items-center justify-center text-[#0d9488] shrink-0">
+                        <TrendingUp size={16} />
+                      </div>
+                      <h3 className="text-[15px] font-semibold text-[#0b1c30]">
+                        Trading terms
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-4">
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Account type
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.accType === 1
+                            ? "Balance forward account"
+                            : "Open item"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Category
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.category?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Terms
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.terms?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Rep code
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.repCode?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Area code
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.areaCode?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Branch code
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.branchCode?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Stock price code
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.stockPrc?.trim() || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-[#76777d] mb-0.5">
+                          Currency
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#0b1c30]">
+                          {customer!.currency ?? "—"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

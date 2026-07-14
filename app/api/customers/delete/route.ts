@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { getUserWithApiConnection } from "@/src/server/supabase/getUserWithApiConnection";
 import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
+import { friendlyRevelationMessage } from "@/src/server/revelation/friendlyMessage";
+import { sanitizeCustomer } from "@/src/server/revelation/sanitizeCustomer";
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ companyNr, customer }),
+      body: JSON.stringify({ companyNr, customer: sanitizeCustomer(customer) }),
       signal: AbortSignal.timeout(30000),
     },
   );
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: result.message ?? `Upstream error ${upstream.status}`,
+        message: friendlyRevelationMessage(result.message, "delete"),
       },
       { status: 502 },
     );
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
 
   if (!result.success) {
     return NextResponse.json(
-      { success: false, message: result.message ?? "Failed to delete client" },
+      { success: false, message: friendlyRevelationMessage(result.message, "delete") },
       { status: 400 },
     );
   }

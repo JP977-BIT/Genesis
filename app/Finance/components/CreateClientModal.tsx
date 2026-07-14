@@ -258,23 +258,33 @@ function buildCustomer(f: FormState): Record<string, unknown> {
   };
 }
 
-// Derives a unique account number from the client's name. Takes up to 6
-// alphanumeric characters of the name (uppercased) as a prefix, then appends
-// the lowest zero-padded counter that isn't already taken — guaranteeing no
-// two clients share an account number.
+// Revelation rejects account numbers longer than 7 characters (its internal
+// error 807), so generated numbers must never exceed it.
+export const MAX_ACC_NO_LENGTH = 7;
+
+// Derives a unique account number from the client's name: up to 4
+// alphanumeric characters of the name (uppercased) as a prefix, plus the
+// lowest zero-padded counter that isn't already taken — guaranteeing no two
+// clients share an account number and never exceeding 7 characters (the
+// prefix shrinks if the counter ever needs more digits).
 function generateAccNo(name: string, existingAccNos: string[]): string {
   const prefix =
     name
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 6) || "CUST";
+      .slice(0, 4) || "CUST";
   const taken = new Set(existingAccNos.map((a) => a.trim().toUpperCase()));
 
+  const candidateFor = (n: number) => {
+    const digits = String(n).padStart(3, "0");
+    return `${prefix.slice(0, MAX_ACC_NO_LENGTH - digits.length)}${digits}`;
+  };
+
   let n = 1;
-  let candidate = `${prefix}${String(n).padStart(3, "0")}`;
+  let candidate = candidateFor(n);
   while (taken.has(candidate)) {
     n += 1;
-    candidate = `${prefix}${String(n).padStart(3, "0")}`;
+    candidate = candidateFor(n);
   }
   return candidate;
 }
@@ -331,7 +341,7 @@ export default function CreateClientModal({
     (
       e: React.ChangeEvent<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-      >
+      >,
     ) =>
       setForm((p) => ({ ...p, [field]: e.target.value }));
 
@@ -346,6 +356,12 @@ export default function CreateClientModal({
   const handleSubmit = async () => {
     if (!form.accNo.trim()) {
       setError("Account number is required");
+      return;
+    }
+    if (form.accNo.trim().length > MAX_ACC_NO_LENGTH) {
+      setError(
+        `Account number must be ${MAX_ACC_NO_LENGTH} characters or fewer`,
+      );
       return;
     }
     if (!form.name.trim()) {
@@ -435,10 +451,11 @@ export default function CreateClientModal({
                 value={form.accNo}
                 onChange={onAccNoChange}
                 placeholder="Auto-generated from name"
+                maxLength={MAX_ACC_NO_LENGTH}
               />
               <p className="text-[11px] text-[#76777d] mt-1">
                 {accNoEdited
-                  ? "Custom account number"
+                  ? `Custom account number — max ${MAX_ACC_NO_LENGTH} characters`
                   : "Auto-generated & unique — edit to override"}
               </p>
             </Field>

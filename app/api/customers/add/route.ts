@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { getUserWithApiConnection } from "@/src/server/supabase/getUserWithApiConnection";
 import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
+import { friendlyRevelationMessage } from "@/src/server/revelation/friendlyMessage";
+import { sanitizeCustomer } from "@/src/server/revelation/sanitizeCustomer";
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -17,7 +19,10 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { message: "Invalid request body" },
+      { status: 400 },
+    );
   }
 
   const { companyNr, customer } = body;
@@ -66,18 +71,12 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ companyNr, customer }),
+      body: JSON.stringify({ companyNr, customer: sanitizeCustomer(customer) }),
       signal: AbortSignal.timeout(30000),
     },
   );
 
   const text = await upstream.text();
-
-  // ── Temporary diagnostic — remove once the add-client issue is resolved ──
-  console.log("[customers/add] upstream status:", upstream.status);
-  console.log("[customers/add] upstream body:", text.slice(0, 1000));
-  // ────────────────────────────────────────────────────────────────────────
-
   let result: { success?: boolean; message?: string; data?: unknown };
   try {
     result = JSON.parse(text);
@@ -95,7 +94,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: result.message ?? `Upstream error ${upstream.status}`,
+        message: friendlyRevelationMessage(result.message, "create"),
       },
       { status: 502 },
     );
@@ -103,7 +102,10 @@ export async function POST(request: NextRequest) {
 
   if (!result.success) {
     return NextResponse.json(
-      { success: false, message: result.message ?? "Failed to create client" },
+      {
+        success: false,
+        message: friendlyRevelationMessage(result.message, "create"),
+      },
       { status: 400 },
     );
   }
