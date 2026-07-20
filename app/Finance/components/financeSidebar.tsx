@@ -17,7 +17,7 @@ const navItems = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "Clients", icon: Users },
   { label: "Suppliers", icon: Truck },
-  { label: "Inventory", icon: Package },
+  { label: "Stock", icon: Package },
   { label: "Admin", icon: ShieldCheck },
   { label: "Subsidiary", icon: GitBranch },
   { label: "Modules", icon: Grid2X2 },
@@ -35,6 +35,10 @@ interface SidebarProps {
   setIsExpanded: (val: boolean) => void;
   activeItem: string;
   setActiveItem: (val: string) => void;
+  /** On detail pages the views don't live on the current route — set this so
+   *  nav items route back to the matching /Finance view instead of only
+   *  toggling the local highlight. */
+  navigateOnSelect?: boolean;
 }
 
 const FinanceSidebar = memo(function FinanceSidebar({
@@ -42,10 +46,11 @@ const FinanceSidebar = memo(function FinanceSidebar({
   setIsExpanded,
   activeItem,
   setActiveItem,
+  navigateOnSelect = false,
 }: SidebarProps) {
   const router = useRouter();
   const [isPinned, setIsPinned] = useState(
-    () => localStorage.getItem("sidebar-pinned") === "true"
+    () => localStorage.getItem("sidebar-pinned") === "true",
   );
 
   const togglePin = () => {
@@ -58,7 +63,9 @@ const FinanceSidebar = memo(function FinanceSidebar({
   return (
     <aside
       onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => { if (!isPinned) setIsExpanded(false); }}
+      onMouseLeave={() => {
+        if (!isPinned) setIsExpanded(false);
+      }}
       style={{
         width: isExpanded ? "192px" : "56px",
         backgroundColor: SIDEBAR_BG,
@@ -126,8 +133,12 @@ const FinanceSidebar = memo(function FinanceSidebar({
             <button
               key={label}
               onClick={() => {
-                if (label === "Dashboard") router.push("/Finance");
                 setActiveItem(label);
+                if (label === "Dashboard") {
+                  router.push("/Finance");
+                } else if (navigateOnSelect) {
+                  router.push(`/Finance?view=${label}`);
+                }
               }}
               className="w-full flex items-center px-3 py-2 mb-1 text-sm whitespace-nowrap transition-colors rounded-lg"
               style={{

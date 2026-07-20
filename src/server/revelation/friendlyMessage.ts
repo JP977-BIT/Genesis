@@ -4,24 +4,27 @@
 // the known-unhelpful ones into something actionable, and pass genuinely
 // informative messages (e.g. validation errors) through unchanged.
 
-type CustomerAction = "create" | "update" | "delete";
+type WriteAction = "create" | "update" | "delete";
 
-const FALLBACK: Record<CustomerAction, string> = {
-  create:
-    "The client could not be created. Please check the details and try again — if it keeps failing, contact your administrator.",
-  update:
-    "The changes could not be saved. Please try again — if it keeps failing, contact your administrator.",
-  delete:
-    "The client could not be deleted. Please try again — if it keeps failing, contact your administrator.",
-};
+function fallback(action: WriteAction, subject: string): string {
+  switch (action) {
+    case "create":
+      return `The ${subject} could not be created. Please check the details and try again — if it keeps failing, contact your administrator.`;
+    case "update":
+      return "The changes could not be saved. Please try again — if it keeps failing, contact your administrator.";
+    case "delete":
+      return `The ${subject} could not be deleted. Please try again — if it keeps failing, contact your administrator.`;
+  }
+}
 
 // Phrases that indicate a message aimed at Revelation operators, not users.
 const UNHELPFUL = /program logs|investigate/i;
 
 export function friendlyRevelationMessage(
   raw: string | undefined,
-  action: CustomerAction,
+  action: WriteAction,
+  subject = "client",
 ): string {
-  if (!raw || UNHELPFUL.test(raw)) return FALLBACK[action];
+  if (!raw || UNHELPFUL.test(raw)) return fallback(action, subject);
   return raw;
 }

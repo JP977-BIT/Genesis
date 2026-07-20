@@ -24,24 +24,29 @@ import {
   BarChart2,
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   Clock,
   Copy,
   CreditCard,
   Download,
   Edit3,
+  FileText,
   GripHorizontal,
   Info,
   MapPin,
   MessageSquare,
   Phone,
   Plus,
+  Receipt,
+  ShoppingBag,
+  ShoppingCart,
   TrendingUp,
   User,
 } from "lucide-react";
 import FinanceSidebar from "@/app/Finance/components/financeSidebar";
-import { useScrollSpy } from "./hooks/useScrollSpy";
-import { LazySection } from "./components/LazySection";
-import { SectionNav } from "./components/SectionNav";
+import { useScrollSpy } from "@/app/Finance/hooks/useScrollSpy";
+import { LazySection } from "@/app/Finance/components/LazySection";
+import { SectionNav } from "@/app/Finance/components/SectionNav";
 import EditClientModal from "./components/EditClientModal";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -63,6 +68,15 @@ const NAV_ITEMS = [
   { id: "age-analysis", label: "Age Analysis", icon: BarChart2 },
   { id: "history", label: "History", icon: Clock },
   { id: "sales-info", label: "Sales Info", icon: TrendingUp },
+] as const;
+
+// ── New Entry menu options ────────────────────────────────────────────────
+const NEW_ENTRY_ITEMS = [
+  { id: "quote", label: "Quotes", icon: FileText },
+  { id: "sales-order", label: "Sales Orders", icon: ShoppingCart },
+  { id: "invoice", label: "Invoices", icon: Receipt },
+  { id: "purchase-order", label: "Purchase Orders", icon: ShoppingBag },
+  { id: "grn", label: "GRNs", icon: ClipboardCheck },
 ] as const;
 
 // ── Shared section order (localStorage key shared with SectionNav) ─────────
@@ -317,6 +331,28 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [customerFetchKey, setCustomerFetchKey] = useState(0);
+
+  // ── New Entry dropdown ──
+  const [showNewEntry, setShowNewEntry] = useState(false);
+  const newEntryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showNewEntry) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!newEntryRef.current?.contains(e.target as Node)) {
+        setShowNewEntry(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowNewEntry(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showNewEntry]);
 
   useEffect(() => {
     if (!accNo || !companyNr) return;
@@ -914,6 +950,7 @@ export default function ClientDetailPage() {
         setIsExpanded={setIsExpanded}
         activeItem={activeNavItem}
         setActiveItem={setActiveNavItem}
+        navigateOnSelect
       />
 
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -983,9 +1020,35 @@ export default function ClientDetailPage() {
                 >
                   <Edit3 size={14} /> Edit Client
                 </button>
-                <button className="h-8 px-4 rounded bg-[#0b1c30] text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-[#131b2e] transition-colors">
-                  <Plus size={14} /> New Entry
-                </button>
+                <div className="relative" ref={newEntryRef}>
+                  <button
+                    onClick={() => setShowNewEntry((v) => !v)}
+                    className="h-8 px-4 rounded bg-[#0b1c30] text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-[#131b2e] transition-colors"
+                  >
+                    <Plus size={14} /> New Entry
+                  </button>
+                  {showNewEntry && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#c6c6cd]/60 rounded-lg shadow-xl overflow-hidden z-50">
+                      {NEW_ENTRY_ITEMS.map((item, i) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setShowNewEntry(false);
+                            if (item.id === "quote") {
+                              router.push(`/Finance/clients/${accNo}/quote/new`);
+                            }
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm text-[#0b1c30] hover:bg-[#f8f9ff] transition-colors ${
+                            i > 0 ? "border-t border-[#e8eaf0]" : ""
+                          }`}
+                        >
+                          <item.icon size={17} className="text-[#45464d]" />
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
 

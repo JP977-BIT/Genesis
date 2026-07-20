@@ -3,17 +3,12 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  User,
-  MessageCircle,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUpDown,
-  Search,
-} from "lucide-react";
+import { User, MessageCircle, Search } from "lucide-react";
 import FinanceSidebar from "./financeSidebar";
 import SalesDashboard from "./SalesDashboard";
 import CreateClientModal from "./CreateClientModal";
+import StockList from "./StockList";
+import SortableHeader, { type SortDirection } from "./SortableHeader";
 import { consumeCustomerPrefetch } from "@/src/lib/prefetch/customers";
 
 interface Customer {
@@ -23,63 +18,6 @@ interface Customer {
   contact: string;
   balance: number;
   activeYN: boolean;
-}
-
-type SortDirection = "asc" | "desc";
-
-type SortableHeaderProps = {
-  label: string;
-  column: keyof Customer;
-  align?: "left" | "right" | "center";
-  sortColumn: keyof Customer | null;
-  sortDirection: SortDirection;
-  onSort: (column: keyof Customer) => void;
-};
-
-function SortableHeader({
-  label,
-  column,
-  align = "left",
-  sortColumn,
-  sortDirection,
-  onSort,
-}: SortableHeaderProps) {
-  const isActive = sortColumn === column;
-
-  const thAlign =
-    align === "right"
-      ? "text-right"
-      : align === "center"
-        ? "text-center"
-        : "text-left";
-
-  const buttonAlign =
-    align === "right"
-      ? "justify-end"
-      : align === "center"
-        ? "justify-center"
-        : "justify-start";
-
-  return (
-    <th className={`px-5 py-3 ${thAlign}`}>
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className={`flex items-center gap-1 w-full uppercase hover:text-[#0f766e] transition ${buttonAlign}`}
-      >
-        <span>{label}</span>
-        {isActive ? (
-          sortDirection === "asc" ? (
-            <ChevronUp size={14} />
-          ) : (
-            <ChevronDown size={14} />
-          )
-        ) : (
-          <ChevronsUpDown size={14} className="text-gray-300" />
-        )}
-      </button>
-    </th>
-  );
 }
 
 export default function FinanceClient() {
@@ -446,11 +384,15 @@ export default function FinanceClient() {
               </div>
             )}
 
+            {activeItem === "Stock" && <StockList companyNr={companyNr} />}
+
             {activeItem === "Dashboard" && (
               <SalesDashboard companyNr={companyNr} />
             )}
 
-            {activeItem !== "Clients" && activeItem !== "Dashboard" && (
+            {activeItem !== "Clients" &&
+              activeItem !== "Stock" &&
+              activeItem !== "Dashboard" && (
               <div className="bg-white rounded-md shadow-sm px-5 py-3">
                 <p className="text-sm text-gray-400">Finance — {activeItem}</p>
               </div>
