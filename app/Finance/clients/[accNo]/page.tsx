@@ -57,6 +57,7 @@ const labelCls =
 const SECTION_IDS = [
   "details",
   "transactions",
+  "quotes",
   "age-analysis",
   "history",
   "sales-info",
@@ -65,6 +66,7 @@ const SECTION_IDS = [
 const NAV_ITEMS = [
   { id: "details", label: "Details", icon: Info },
   { id: "transactions", label: "Transactions", icon: CreditCard },
+  { id: "quotes", label: "Quotes", icon: FileText },
   { id: "age-analysis", label: "Age Analysis", icon: BarChart2 },
   { id: "history", label: "History", icon: Clock },
   { id: "sales-info", label: "Sales Info", icon: TrendingUp },
@@ -200,9 +202,33 @@ interface Transaction {
   arcDate: string;
 }
 
+// Header of one sales quote from /api/quotes/list (line bodies come back
+// empty on the headers endpoint).
+interface QuoteHeader {
+  quoteNo: string;
+  accNo: string;
+  date: string;
+  expiryDate: string | null;
+  total: number;
+  numberOfLines: number;
+  status: number;
+  notes: string | null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   n.toLocaleString("en-ZA", { minimumFractionDigits: 2 });
+
+// Labels for Revelation's numeric quote status codes — mirrors STATUSES in
+// quote/components/QuoteEditor.tsx (kept local so this page doesn't pull the
+// whole editor into its bundle).
+const QUOTE_STATUS_LABELS: Record<number, string> = {
+  0: "Draft",
+  1: "Sent to client",
+  2: "Accepted",
+  3: "Declined",
+  4: "Expired",
+};
 
 const isDebitType = (name: string) => /invoice|debit/i.test(name);
 const isCreditType = (name: string) => /credit|receipt|payment/i.test(name);
@@ -246,6 +272,47 @@ function useTransactions(
   }, [enabled, accNo, companyNr]);
 
   return { transactions, loading };
+}
+
+function useQuotes(accNo: string, companyNr: string | null, enabled: boolean) {
+  const [quotes, setQuotes] = useState<QuoteHeader[]>([]);
+  const [loading, setLoading] = useState(false);
+  // Unlike the other sections this one gets an error + retry state — it is
+  // the entry point for amending quotes, so a silent empty table would be
+  // indistinguishable from "no quotes".
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!enabled || !companyNr) return;
+
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    fetch(`/api/quotes/list?companyNr=${companyNr}&accNo=${accNo}`)
+      .then((r) => r.json())
+      .then((result) => {
+        if (!active) return;
+        if (result.success && result.data?.salesQuotes) {
+          setQuotes(result.data.salesQuotes);
+        } else {
+          setError(result.message || "Failed to load quotes.");
+        }
+      })
+      .catch(() => {
+        if (active) setError("Network error — could not load quotes.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [enabled, accNo, companyNr, tick]);
+
+  return { quotes, loading, error, refetch: () => setTick((t) => t + 1) };
 }
 
 function useAgeAnalysis(
@@ -882,6 +949,19 @@ export default function ClientDetailPage() {
                 lineItems={lineItems}
                 loadingLines={loadingLines}
                 fetchLineItems={fetchLineItems}
+              />
+            )}
+          </LazySection>
+        );
+
+      case "quotes":
+        return (
+          <LazySection id="quotes">
+            {(enabled) => (
+              <QuotesSection
+                accNo={accNo}
+                companyNr={companyNr}
+                enabled={enabled}
               />
             )}
           </LazySection>
@@ -1566,6 +1646,167 @@ function TransactionsSection({
                 </div>
               );
             })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface QuotesSectionProps {
+  accNo: string;
+  companyNr: string | null;
+  enabled: boolean;
+}
+
+function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
+  const router = useRouter();
+  const { quotes, loading, error, refetch } = useQuotes(
+    accNo,
+    companyNr,
+    enabled,
+  );
+
+  const today = new Date();
+  const isExpired = (q: QuoteHeader) =>
+    q.expiryDate !== null && new Date(q.expiryDate) < today;
+
+  const totalQuoted = quotes.reduce((s, q) => s + q.total, 0);
+  const expiredCount = quotes.filter(isExpired).length;
+
+  const openQuote = (q: QuoteHeader) =>
+    router.push(
+      `/Finance/clients/${accNo}/quote/${encodeURIComponent(q.quoteNo.trim())}`,
+    );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold text-[#0b1c30]">Quotes</h2>
+        <button
+          onClick={() => router.push(`/Finance/clients/${accNo}/quote/new`)}
+          className="h-8 px-3.5 rounded-lg bg-[#0d9488] text-white text-[12.5px] font-medium flex items-center gap-1.5 hover:bg-[#0b7c72] transition-colors"
+        >
+          <Plus size={14} /> New Quote
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="flex divide-x divide-[#c6c6cd]">
+        <div className="pr-12">
+          <p className={`${labelCls} mb-1.5`}>TOTAL QUOTED</p>
+          <p className="text-[30px] font-bold text-[#0b1c30] leading-none">
+            {loading ? "—" : fmt(totalQuoted)}
+          </p>
+        </div>
+        <div className="px-12">
+          <p className={`${labelCls} mb-1.5`}>ACTIVE</p>
+          <p className="text-[30px] font-bold text-[#009668] leading-none">
+            {loading ? "—" : quotes.length - expiredCount}
+          </p>
+        </div>
+        <div className="pl-12">
+          <p className={`${labelCls} mb-1.5`}>EXPIRED</p>
+          <p className="text-[30px] font-bold text-[#76777d] leading-none">
+            {loading ? "—" : expiredCount}
+          </p>
+        </div>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
+          <p className="text-sm text-[#76777d]">Loading quotes…</p>
+        </div>
+      ) : error ? (
+        <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center space-y-3">
+          <p className="text-sm text-[#ba1a1a]">{error}</p>
+          <button
+            onClick={refetch}
+            className="h-8 px-4 rounded border border-[#c6c6cd] bg-white text-[#0b1c30] text-sm font-medium hover:bg-[#f8f9ff] transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : quotes.length === 0 ? (
+        <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center space-y-1.5">
+          <p className="text-sm text-[#76777d]">
+            No quotes yet for this account
+          </p>
+          <p className="text-[12.5px] text-[#b0b1b8]">
+            Use “New Quote” above to create the first one.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-[#c6c6cd] shadow-[0px_1px_2px_rgba(15,23,42,0.05)] overflow-hidden">
+          {/* Header row */}
+          <div className="grid grid-cols-[110px_130px_130px_70px_1fr_140px_28px] gap-3 bg-[#f8f9ff] border-b border-[#c6c6cd] px-4 py-2.5">
+            <p className={labelCls}>Quote #</p>
+            <p className={labelCls}>Date</p>
+            <p className={labelCls}>Valid Until</p>
+            <p className={`${labelCls} text-right`}>Lines</p>
+            <p className={`${labelCls} text-right`}>Total</p>
+            <p className={labelCls}>Status</p>
+            <div />
+          </div>
+
+          {/* Data rows — a whole row opens the quote for revision */}
+          {quotes.map((q) => {
+            const expired = isExpired(q);
+            const statusLabel = QUOTE_STATUS_LABELS[q.status] ?? `${q.status}`;
+            return (
+              <button
+                key={q.quoteNo}
+                onClick={() => openQuote(q)}
+                className="w-full grid grid-cols-[110px_130px_130px_70px_1fr_140px_28px] gap-3 px-4 py-3 text-left items-center border-b border-[#c6c6cd]/50 last:border-0 hover:bg-[#f8f9ff] cursor-pointer transition-colors"
+              >
+                <span className="font-mono text-[12.5px] text-[#006398]">
+                  {q.quoteNo.trim()}
+                </span>
+                <span className="text-[13px] text-[#45464d]">
+                  {new Date(q.date).toLocaleDateString("en-ZA", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+                <span className="text-[13px] text-[#45464d]">
+                  {q.expiryDate
+                    ? new Date(q.expiryDate).toLocaleDateString("en-ZA", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </span>
+                <span className="text-[13px] text-[#45464d] text-right tabular-nums">
+                  {q.numberOfLines}
+                </span>
+                <span className="text-[13px] font-semibold text-[#0b1c30] text-right tabular-nums">
+                  {fmt(q.total)}
+                </span>
+                <span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                      expired
+                        ? "bg-[#e8eaf0] text-[#45464d] border-[#c6c6cd]"
+                        : q.status === 2
+                          ? "bg-[#009668]/10 text-[#009668] border-[#009668]/20"
+                          : q.status === 3
+                            ? "bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/25"
+                            : q.status === 1
+                              ? "bg-[#F59E0B]/10 text-[#b45309] border-[#F59E0B]/30"
+                              : "bg-[#eff4ff] text-[#006398] border-[#006398]/20"
+                    }`}
+                  >
+                    {expired ? "Expired" : statusLabel}
+                  </span>
+                </span>
+                <span className="text-[#76777d] flex items-center justify-end">
+                  <ChevronRight size={14} />
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

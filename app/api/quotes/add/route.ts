@@ -5,10 +5,16 @@ import { getUserWithApiConnection } from "@/src/server/supabase/getUserWithApiCo
 import { getRevelationToken } from "@/src/server/revelation/getRevelationToken";
 import { friendlyRevelationMessage } from "@/src/server/revelation/friendlyMessage";
 
-// Upstream path inferred from the documented read endpoint for sales quotes
-// and the /api/stock/stockitem/add naming pattern — verify against the
-// Revelation swagger before relying on it in production.
-const UPSTREAM_PATH = "/api/customertransactions/salesquote/add";
+// Verified live 2026-07-20: /api/customertransactions/salesquote/add does NOT
+// exist (404). Sales quotes are created via /api/quotes/createquote, which
+// assigns the next quote number itself and returns it as the response `data`
+// string. It never updates an existing quote — resending a quoteNo always
+// creates a new one.
+const UPSTREAM_PATH = "/api/quotes/createquote";
+
+// createquote requires a userNr; the API has no per-operator concept in this
+// app, and "1" matches the userNo on quotes created by Revelation itself.
+const REVELATION_USER_NR = "1";
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -35,6 +41,11 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  // Proven by live bisect (2026-07-20): without header ledger "Q" the upstream
+  // still answers "Saved successfully" and consumes a quote number, but
+  // persists NOTHING. Enforce it here so no caller can silently lose a quote.
+  const guardedQuote = { ...(salesQuote as Record<string, unknown>), ledger: "Q" };
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,7 +83,11 @@ export async function POST(request: NextRequest) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ companyNr, salesQuote }),
+    body: JSON.stringify({
+      companyNr,
+      userNr: REVELATION_USER_NR,
+      salesQuote: guardedQuote,
+    }),
     signal: AbortSignal.timeout(30000),
   });
 

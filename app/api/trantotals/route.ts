@@ -95,6 +95,13 @@ export async function GET(request: NextRequest) {
         // Revelation returns Content-Type: text/plain even when the body is JSON.
         // Read as text first, then parse — prevents a JSON parse error on the header mismatch.
         const text = await upstream.text();
+
+        // Revelation answers with a bodyless 204 (not an empty list) when the
+        // company has no till-operator rows — treat it as an empty result.
+        if (upstream.status === 204 || text.trim() === "") {
+          return { success: true, data: { data: { tranTotals: [], totalRows: 0 } } };
+        }
+
         const tranData: unknown = JSON.parse(text);
 
         return { success: true, data: tranData };
@@ -107,7 +114,8 @@ export async function GET(request: NextRequest) {
     )();
 
     return NextResponse.json(result);
-  } catch {
+  } catch (err) {
+    console.error("trantotals upstream failure:", err);
     return NextResponse.json(
       { message: "Upstream API error" },
       { status: 502 },
