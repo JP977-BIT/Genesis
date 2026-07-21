@@ -6,24 +6,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search } from "lucide-react";
 import SortableHeader, { type SortDirection } from "./SortableHeader";
 import CreateStockModal from "./CreateStockModal";
+import { getStockHeaders } from "@/src/lib/prefetch/stock";
 
 interface StockItem {
   dbId: number;
   code: string;
   description: string;
   category: string;
-  exclPrice: number;
-  inclPrice: number;
-  onHand: number;
-  available: number;
-}
-
-// Raw shape from /api/stock — cat is nested, everything else passes through
-interface StockHeader {
-  dbId: number;
-  code: string | null;
-  description: string | null;
-  cat: { id: number; code: string; name: string } | null;
   exclPrice: number;
   inclPrice: number;
   onHand: number;
@@ -118,14 +107,14 @@ export default function StockList({ companyNr }: { companyNr: string | null }) {
     const fetchStock = async () => {
       setLoading(true);
       try {
-        const result = await fetch(
-          `/api/stock?companyNr=${companyNr}&numberOfRecords=5000`,
-        ).then((r) => r.json());
+        // Shared client cache: instant when the company-select prefetch (or
+        // the quote editor) already loaded it. fetchKey > 0 means a stock
+        // item was just created — force a refetch.
+        const headers = await getStockHeaders(companyNr, fetchKey > 0);
 
         if (!isActive) return;
 
-        if (result.success) {
-          const headers: StockHeader[] = result.data.stockHeaders ?? [];
+        if (headers) {
           // Revelation can return the same item more than once (e.g. one row
           // per warehouse when querying warehouseNr 0) — keep the first
           // occurrence so codes stay unique in the list.

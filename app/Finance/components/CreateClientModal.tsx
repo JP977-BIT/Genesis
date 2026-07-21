@@ -636,6 +636,7 @@ export default function CreateClientModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.creditLimit}
                 onChange={num("creditLimit")}
                 min={0}
@@ -646,6 +647,7 @@ export default function CreateClientModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.tradeDisc}
                 onChange={num("tradeDisc")}
                 min={0}
@@ -657,6 +659,7 @@ export default function CreateClientModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.settleDisc}
                 onChange={num("settleDisc")}
                 min={0}

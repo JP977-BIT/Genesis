@@ -568,6 +568,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.exclPrice}
                 onChange={num("exclPrice")}
                 min={0}
@@ -578,6 +579,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.inclPrice}
                 onChange={num("inclPrice")}
                 min={0}
@@ -588,6 +590,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.listPrice}
                 onChange={num("listPrice")}
                 min={0}
@@ -598,6 +601,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.stdCost}
                 onChange={num("stdCost")}
                 min={0}
@@ -629,6 +633,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.unitWeight}
                 onChange={num("unitWeight")}
                 min={0}
@@ -639,6 +644,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.minLevel}
                 onChange={num("minLevel")}
                 min={0}
@@ -648,6 +654,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.maxLevel}
                 onChange={num("maxLevel")}
                 min={0}
@@ -657,6 +664,7 @@ export default function CreateStockModal({
               <input
                 className={inputCls}
                 type="number"
+                onFocus={(e) => e.currentTarget.select()}
                 value={form.reOrderQty}
                 onChange={num("reOrderQty")}
                 min={0}

@@ -56,6 +56,56 @@ interface CacheEntry {
 const clientCache = new Map<string, CacheEntry>();
 const STALE_MS = 5 * 60 * 1000; // 5 minutes, matching the server-side cache TTL
 
+// In-flight requests, so a prefetch and a mounting dashboard share one fetch.
+type LoadResult = { rows: TranTotalRow[] } | { error: string };
+const pendingFetches = new Map<string, Promise<LoadResult>>();
+
+// ── Shared loader ─────────────────────────────────────────────────────────────
+// Used by both the hook and prefetchTranTotals. Serves fresh cache, joins an
+// in-flight request, or fetches and populates the cache.
+function loadTranTotals(companyNr: string): Promise<LoadResult> {
+  const cached = clientCache.get(companyNr);
+  if (cached && Date.now() - cached.fetchedAt < STALE_MS) {
+    return Promise.resolve({ rows: cached.rows });
+  }
+
+  const pending = pendingFetches.get(companyNr);
+  if (pending) return pending;
+
+  const promise: Promise<LoadResult> = fetch(
+    `/api/trantotals?companyNr=${encodeURIComponent(companyNr)}`,
+  )
+    .then((r) => r.json())
+    .then((result): LoadResult => {
+      // Response shape: { success, data: { success, data: { tranTotals, totalRows } } }
+      // — our route wraps the full Revelation response in { success: true, data: ... },
+      //   matching how app/api/customers/ageanalysis/route.ts wraps its response.
+      const tranTotals =
+        (result?.data as { data?: { tranTotals?: TranTotalRow[] } })?.data
+          ?.tranTotals ?? [];
+      if (result.success) {
+        clientCache.set(companyNr, { rows: tranTotals, fetchedAt: Date.now() });
+        return { rows: tranTotals };
+      }
+      return { error: result.message ?? "Failed to load sales data" };
+    })
+    .catch((): LoadResult => ({
+      error: "Network error — could not load sales data",
+    }))
+    .finally(() => {
+      pendingFetches.delete(companyNr);
+    });
+
+  pendingFetches.set(companyNr, promise);
+  return promise;
+}
+
+// Fire-and-forget warm-up (e.g. on company-select) — the dashboard then mounts
+// onto the in-flight request or the populated cache.
+export function prefetchTranTotals(companyNr: string): void {
+  void loadTranTotals(companyNr);
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useTranTotals(companyNr: string | null): UseTranTotalsResult {
   const [rows, setRows] = useState<TranTotalRow[]>([]);
@@ -79,25 +129,14 @@ export function useTranTotals(companyNr: string | null): UseTranTotalsResult {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/trantotals?companyNr=${encodeURIComponent(companyNr)}`)
-      .then((r) => r.json())
+    loadTranTotals(companyNr)
       .then((result) => {
         if (!active) return;
-        // Response shape: { success, data: { success, data: { tranTotals, totalRows } } }
-        // — our route wraps the full Revelation response in { success: true, data: ... },
-        //   matching how app/api/customers/ageanalysis/route.ts wraps its response.
-        const tranTotals =
-          (result?.data as { data?: { tranTotals?: TranTotalRow[] } })?.data
-            ?.tranTotals ?? [];
-        if (result.success) {
-          clientCache.set(companyNr, { rows: tranTotals, fetchedAt: Date.now() });
-          setRows(tranTotals);
+        if ("rows" in result) {
+          setRows(result.rows);
         } else {
-          setError(result.message ?? "Failed to load sales data");
+          setError(result.error);
         }
-      })
-      .catch(() => {
-        if (active) setError("Network error — could not load sales data");
       })
       .finally(() => {
         if (active) setLoading(false);

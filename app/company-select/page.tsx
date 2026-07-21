@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { prefetchCustomers } from "@/src/lib/prefetch/customers";
+import { prefetchCompanyData } from "@/src/lib/prefetch/company";
 
 interface Company {
   companyName: string;
@@ -50,7 +50,9 @@ export default function CompanySelectPage() {
       companyNr: String(parseInt(company.companyNr, 10)),
     };
     localStorage.setItem("selectedCompany", JSON.stringify(cleanedCompany));
-    prefetchCustomers(cleanedCompany.companyNr);
+    // Warm the Finance module's per-company data (customers, stock,
+    // dashboard totals) in the background while the user is on /home.
+    prefetchCompanyData(cleanedCompany.companyNr);
     router.push("/home");
   };
 

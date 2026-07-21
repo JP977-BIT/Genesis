@@ -9,7 +9,7 @@ import SalesDashboard from "./SalesDashboard";
 import CreateClientModal from "./CreateClientModal";
 import StockList from "./StockList";
 import SortableHeader, { type SortDirection } from "./SortableHeader";
-import { consumeCustomerPrefetch } from "@/src/lib/prefetch/customers";
+import { getCustomers } from "@/src/lib/prefetch/customers";
 
 interface Customer {
   accNo: string;
@@ -115,16 +115,13 @@ export default function FinanceClient() {
       setLoadingCustomers(true);
 
       try {
-        const prefetch = consumeCustomerPrefetch(String(company.companyNr));
-        const customers = prefetch
-          ? await prefetch
-          : await fetch(
-              `/api/customers?companyNr=${company.companyNr}&numberOfRecords=5000`,
-            )
-              .then((r) => r.json())
-              .then((result) =>
-                result.success ? result.data.customers : null,
-              );
+        // Served from the shared client cache: instant when the
+        // company-select prefetch (or a previous mount) already loaded it.
+        // fetchKey > 0 means a client was just created — force a refetch.
+        const customers = await getCustomers(
+          String(company.companyNr),
+          fetchKey > 0,
+        );
 
         if (!isActive) return;
 

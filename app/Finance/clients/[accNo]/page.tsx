@@ -48,6 +48,9 @@ import { useScrollSpy } from "@/app/Finance/hooks/useScrollSpy";
 import { LazySection } from "@/app/Finance/components/LazySection";
 import { SectionNav } from "@/app/Finance/components/SectionNav";
 import EditClientModal from "./components/EditClientModal";
+import QuoteDetailModal, {
+  QUOTE_STATUS_LABELS,
+} from "./components/QuoteDetailModal";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const labelCls =
@@ -219,16 +222,6 @@ interface QuoteHeader {
 const fmt = (n: number) =>
   n.toLocaleString("en-ZA", { minimumFractionDigits: 2 });
 
-// Labels for Revelation's numeric quote status codes — mirrors STATUSES in
-// quote/components/QuoteEditor.tsx (kept local so this page doesn't pull the
-// whole editor into its bundle).
-const QUOTE_STATUS_LABELS: Record<number, string> = {
-  0: "Draft",
-  1: "Sent to client",
-  2: "Accepted",
-  3: "Declined",
-  4: "Expired",
-};
 
 const isDebitType = (name: string) => /invoice|debit/i.test(name);
 const isCreditType = (name: string) => /credit|receipt|payment/i.test(name);
@@ -1469,7 +1462,7 @@ function TransactionsSection({
       ) : transactions.length === 0 ? (
         <div className="bg-white rounded-lg border border-[#c6c6cd] py-16 text-center">
           <p className="text-sm text-[#76777d]">
-            No transactions found for this account
+            Transaction review coming soon!
           </p>
         </div>
       ) : (
@@ -1659,7 +1652,6 @@ interface QuotesSectionProps {
 }
 
 function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
-  const router = useRouter();
   const { quotes, loading, error, refetch } = useQuotes(
     accNo,
     companyNr,
@@ -1673,22 +1665,13 @@ function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
   const totalQuoted = quotes.reduce((s, q) => s + q.total, 0);
   const expiredCount = quotes.filter(isExpired).length;
 
-  const openQuote = (q: QuoteHeader) =>
-    router.push(
-      `/Finance/clients/${accNo}/quote/${encodeURIComponent(q.quoteNo.trim())}`,
-    );
+  // Clicking a row pops up the full quote (header/lines/totals); the modal's
+  // "Revise Quote" button is the path into the editor.
+  const [viewQuoteNo, setViewQuoteNo] = useState<string | null>(null);
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-[#0b1c30]">Quotes</h2>
-        <button
-          onClick={() => router.push(`/Finance/clients/${accNo}/quote/new`)}
-          className="h-8 px-3.5 rounded-lg bg-[#0d9488] text-white text-[12.5px] font-medium flex items-center gap-1.5 hover:bg-[#0b7c72] transition-colors"
-        >
-          <Plus size={14} /> New Quote
-        </button>
-      </div>
+      <h2 className="text-[15px] font-semibold text-[#0b1c30]">Quotes</h2>
 
       {/* Summary */}
       <div className="flex divide-x divide-[#c6c6cd]">
@@ -1733,7 +1716,7 @@ function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
             No quotes yet for this account
           </p>
           <p className="text-[12.5px] text-[#b0b1b8]">
-            Use “New Quote” above to create the first one.
+            Create one via “New Entry” at the top of the page.
           </p>
         </div>
       ) : (
@@ -1756,7 +1739,7 @@ function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
             return (
               <button
                 key={q.quoteNo}
-                onClick={() => openQuote(q)}
+                onClick={() => setViewQuoteNo(q.quoteNo.trim())}
                 className="w-full grid grid-cols-[110px_130px_130px_70px_1fr_140px_28px] gap-3 px-4 py-3 text-left items-center border-b border-[#c6c6cd]/50 last:border-0 hover:bg-[#f8f9ff] cursor-pointer transition-colors"
               >
                 <span className="font-mono text-[12.5px] text-[#006398]">
@@ -1809,6 +1792,13 @@ function QuotesSection({ accNo, companyNr, enabled }: QuotesSectionProps) {
           })}
         </div>
       )}
+
+      <QuoteDetailModal
+        key={viewQuoteNo ?? "closed"}
+        quoteNo={viewQuoteNo}
+        companyNr={companyNr}
+        onClose={() => setViewQuoteNo(null)}
+      />
     </div>
   );
 }

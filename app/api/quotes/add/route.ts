@@ -45,7 +45,15 @@ export async function POST(request: NextRequest) {
   // Proven by live bisect (2026-07-20): without header ledger "Q" the upstream
   // still answers "Saved successfully" and consumes a quote number, but
   // persists NOTHING. Enforce it here so no caller can silently lose a quote.
-  const guardedQuote = { ...(salesQuote as Record<string, unknown>), ledger: "Q" };
+  // Proven by live bisect (2026-07-21): header orderType is a document-type
+  // code, not free text — any value other than "Q" fails the save with
+  // Revelation's generic error 801. (Line-level orderType is ignored and
+  // normalized to "Q" on read-back.)
+  const guardedQuote = {
+    ...(salesQuote as Record<string, unknown>),
+    ledger: "Q",
+    orderType: "Q",
+  };
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

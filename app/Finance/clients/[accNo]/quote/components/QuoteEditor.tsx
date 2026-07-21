@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import FinanceSidebar from "@/app/Finance/components/financeSidebar";
 import ConfirmCancelModal from "@/app/Finance/components/ConfirmCancelModal";
+import { getStockHeaders } from "@/src/lib/prefetch/stock";
 
 // ── Design tokens (shared with the client detail page) ───────────────────────
 const labelCls =
@@ -196,16 +197,10 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
     let active = true;
     (async () => {
       try {
-        const result = await fetch(
-          `/api/stock?companyNr=${companyNr}&numberOfRecords=5000`,
-        ).then((r) => r.json());
-        if (!active || !result.success) return;
-        const headers = (result.data.stockHeaders ?? []) as Array<{
-          code?: string;
-          description?: string;
-          exclPrice?: number;
-          onHand?: number;
-        }>;
+        // Shared client cache — instant when the company-select prefetch or
+        // the Stock tab already loaded the catalogue.
+        const headers = await getStockHeaders(companyNr);
+        if (!active || !headers) return;
         const seen = new Set<string>();
         const options: StockOption[] = [];
         for (const h of headers) {
@@ -259,9 +254,6 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
   const [expiryDate, setExpiryDate] = useState(initialExpiryDate);
   const [warehouseNr, setWarehouseNr] = useState(initialQuote?.warehouseNr ?? 0);
   const [status, setStatus] = useState(initialQuote?.status ?? 0);
-  const [orderType, setOrderType] = useState(
-    () => initialQuote?.orderType?.trim() || "Quote",
-  );
   const [notes, setNotes] = useState(() => initialQuote?.notes?.trim() ?? "");
 
   // Address and rep are derived from the client's file until the user edits
@@ -390,7 +382,6 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
     deliveryMethod,
     warehouseNr,
     status,
-    orderType,
     repCodeOverride,
     discPercent,
     freight,
@@ -492,7 +483,10 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
       exclIncl: "",
       gstNo: customer.gstNumber ?? "",
       notes,
-      orderType,
+      // orderType is Revelation's document-type code, not free text — proven
+      // by live bisect 2026-07-21: any header value except "Q" fails the save
+      // with generic error 801, and line values are normalized to "Q" anyway.
+      orderType: "Q",
       repCode,
       deliveryAddress1: address[0],
       deliveryAddress2: address[1],
@@ -526,7 +520,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
         lineNo: i + 1,
         ledger: "",
         accNo: customer.accNo,
-        orderType,
+        orderType: "Q",
         stockcode: l.code,
         description: l.description,
         taxCode: "",
@@ -804,6 +798,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                     <input
                       id="warehouseNr"
                       type="number"
+                      onFocus={(e) => e.currentTarget.select()}
                       min={0}
                       value={warehouseNr}
                       onChange={(e) =>
@@ -829,18 +824,6 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label className={labelCls} htmlFor="orderType">
-                      Order type
-                    </label>
-                    <input
-                      id="orderType"
-                      type="text"
-                      value={orderType}
-                      onChange={(e) => setOrderType(e.target.value)}
-                      className={inputCls}
-                    />
                   </div>
                   <div>
                     <label className={labelCls} htmlFor="validUntil">
@@ -1026,6 +1009,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                         <input
                           type="text"
                           inputMode="numeric"
+                          onFocus={(e) => e.currentTarget.select()}
                           value={l.qty}
                           aria-label="Quantity"
                           onChange={(e) => {
@@ -1046,6 +1030,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                       <input
                         type="text"
                         inputMode="numeric"
+                        onFocus={(e) => e.currentTarget.select()}
                         value={`${l.disc} %`}
                         aria-label="Discount percent"
                         onChange={(e) => {
@@ -1089,6 +1074,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                     id="discAll"
                     type="text"
                     inputMode="numeric"
+                    onFocus={(e) => e.currentTarget.select()}
                     value={`${discPercent} %`}
                     onChange={(e) => {
                       const d = parseFloat(e.target.value.replace("%", ""));
@@ -1111,6 +1097,7 @@ export default function QuoteEditor({ accNo, initialQuote }: QuoteEditorProps) {
                   id="freight"
                   type="text"
                   inputMode="numeric"
+                  onFocus={(e) => e.currentTarget.select()}
                   value={fmtRand(freight)}
                   onChange={(e) => {
                     const f = parseFloat(
